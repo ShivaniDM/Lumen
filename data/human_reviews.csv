@@ -1,0 +1,3 @@
+review_id,alert_id,reviewer,evidence_reviewed,draft_disposition,decision_reason,final_note,final_action,reviewed_at
+REV001,ALERT007,reviewer:jdoe,False,accepted,,,,2026-05-12T13:05:00
+REV002,ALERT004,reviewer:asmith,True,edited,Confirmed four sub-threshold deposits over three days; pattern consistent with structuring.,Escalating to investigations for SAR consideration.,escalate,2026-05-17T15:00:00

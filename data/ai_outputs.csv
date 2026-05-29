@@ -1,0 +1,11 @@
+output_id,alert_id,claim_id,claim_type,asserted_value,evidence_refs,generated_at
+OUT001,ALERT001,CLM001,prior_sar_history,true,"[""prior_cases.customer_id=CUST0001""]",2026-05-21T14:00:00
+OUT002,ALERT002,CLM002,expected_activity_mismatch,inflow 45000.00 vs expected_monthly_volume 2000.00,"[""customers.customer_id=CUST0002"", ""transactions.txn_id=TXN00002""]",2026-05-19T13:00:00
+OUT003,ALERT003,CLM003,rapid_movement,4 same-amount transactions within one day,"[""transactions.customer_id=CUST0003""]",2026-05-23T10:30:00
+OUT004,ALERT004,CLM004,structuring,4 deposits under 10000 across 3 days,"[""transactions.customer_id=CUST0004""]",2026-05-17T11:00:00
+OUT005,ALERT005,CLM005,high_risk_country,IR,"[""transactions.counterparty_country=IR""]",2026-05-26T10:00:00
+OUT006,ALERT005,CLM006,unusual_transaction_volume,60000.00 outflow in 1 day,"[""customers.customer_id=CUST0005"", ""transactions.customer_id=CUST0005""]",2026-05-26T10:00:00
+OUT007,ALERT006,CLM007,stale_kyc_profile,true,[],2026-05-11T13:00:00
+OUT008,ALERT006,CLM008,missing_kyc_data,true,[],2026-05-11T13:05:00
+OUT009,ALERT007,CLM009,prior_alert_history,true,"[""alerts.customer_id=CUST0007""]",2026-05-12T13:00:00
+OUT010,ALERT007,CLM010,prior_sar_history,true,"[""prior_cases.customer_id=CUST0007""]",2026-05-12T13:01:00
