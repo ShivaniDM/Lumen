@@ -13,26 +13,28 @@ emits structured claims drawn from a closed vocabulary. Each claim is checked
 against the underlying records by deterministic code. A human only approves
 after seeing which claims passed, failed, or need review.
 
-## Project status: Phase 1 (foundation)
+## Project status: Phase 2 (LLM drafter)
 
-This phase delivers the foundation only:
+Phase 1 delivered the foundation: scaffolding, schema, synthetic data
+with planted hero cases, closed claim-type vocabulary, verifier dispatcher,
+and audit log.
 
-- Project scaffolding
-- Data schema (9 tables, Pydantic v2)
-- Synthetic dataset with planted "hero" demo cases
-- Closed claim-type vocabulary (9 types)
-- Stubs for the verifier and audit modules
+Phase 2 delivers the LLM integration layer: src/llm_drafter.py calls the
+Anthropic API using tool use, forces structured claims from the closed
+vocabulary, validates every claim against schema gates, and logs the full
+draft lifecycle to the audit trail. The pipeline LLM step is now live.
 
-Not in this phase: the Streamlit UI, real LLM integration, and real verifier
+Not in this phase: the Streamlit UI and real verifier
 pattern-matching logic. Those arrive in later weeks.
 
 ## Layout
 
 ```
 data/        synthetic CSVs, one per table (generated, reproducible)
-src/         Python modules (schema, verifier, audit, pipeline)
+src/         Python modules (schema, verifier, audit, pipeline, llm_drafter)
 docs/        specs and design docs (schema.md, claim_types.md)
 scripts/     data generation
+scripts/smoke_drafter.py   live API smoke test (manual only, not CI)
 tests/       pytest sanity checks for the planted hero cases
 ```
 
@@ -47,6 +49,17 @@ python -m pytest                  # run the data-integrity tests
 Data generation uses a fixed random seed, so the CSVs are byte-for-byte
 reproducible across runs.
 
+## Smoke test
+
+Requires an Anthropic API key in the environment.
+
+Set ANTHROPIC_API_KEY then run:
+
+    python scripts/smoke_drafter.py
+
+This calls the real API for ALERT001 and prints the returned claims.
+Never run this in CI. It is a manual verification tool only.
+
 ## Hero cases
 
 The synthetic data has planted demo moments. See `scripts/generate_data.py`
@@ -55,12 +68,13 @@ exactly where each one lives and what it demonstrates.
 
 ## Module map
 
-| Module           | Status in Phase 1 | Purpose                                          |
+| Module           | Status | Purpose                                          |
 |------------------|-------------------|--------------------------------------------------|
 | `src/schema.py`  | Complete          | Pydantic v2 models for all 9 tables              |
 | `src/audit.py`   | Complete          | Append-only audit log writer                     |
 | `src/verifier.py`| Stub              | Claim verification dispatcher (logic in wk 5-6)  |
 | `src/pipeline.py`| Stub              | End-to-end orchestration outline                 |
+| `src/llm_drafter.py`| Complete       | Calls Anthropic API via tool use to draft structured claims |
 
 ## Documentation
 

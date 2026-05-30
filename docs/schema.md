@@ -9,6 +9,10 @@ A note on two special column formats:
 
 - `ai_outputs.evidence_refs` and `audit_log.details_json` hold structured data.
   In the CSV they are stored as JSON text. Read them with `json.loads`.
+  Each reference in evidence_refs uses the format
+  table_name.column=value. Legal table names are: customers, transactions,
+  alerts, evidence_items, prior_cases, kyc_profile_status, ai_outputs,
+  human_reviews.
 - Empty optional fields (for example a review with no `final_note`) are stored
   as empty cells. When loading with pandas, use `keep_default_na=False` if you
   want them to come back as empty strings rather than NaN.
@@ -63,8 +67,9 @@ the field the `stale_kyc_profile` claim is checked against.
 The structured claims emitted by the AI. One row per claim. Each row names the
 alert it belongs to, the claim type (from the closed vocabulary in
 `docs/claim_types.md`), the asserted value, and `evidence_refs` pointing at the
-source rows the AI says support the claim. In Phase 1 these rows are hardcoded,
-not produced by a live model.
+source rows the AI says support the claim. From Phase 2 onward these rows are produced by src/llm_drafter.py, which
+calls the Anthropic API and enforces the closed vocabulary via both tool
+schema and Python validation gates.
 
 ### human_reviews
 
