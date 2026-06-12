@@ -26,7 +26,7 @@ REF_DATE = date(2026, 5, 29)  # "today" for this dataset, fixed for reproducibil
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
-HIGH_RISK_COUNTRIES = ["IR", "KP", "SY", "AF"]  # used by high_risk_country typology
+HIGH_RISK_COUNTRIES = ["IR", "KP", "SY", "MM", "CU", "VE", "RU"]  # used by high_risk_country typology
 NORMAL_COUNTRIES = ["US", "GB", "CA", "DE", "FR", "JP", "AU"]
 OCCUPATIONS = ["Teacher", "Engineer", "Nurse", "Retired", "Accountant", "Driver", "Consultant"]
 

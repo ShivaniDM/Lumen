@@ -103,6 +103,8 @@ The AI claims the customer's KYC profile is out of date (KYC drift).
 The AI claims the customer transacted with a country on the high-risk list.
 
 - **Source data**: `transactions.counterparty_country`
+- **Country codes**: the high-risk list uses ISO alpha-2 two-letter codes:
+  IR, KP, SY, MM, CU, VE, RU.
 - **Verification rule**: The claim passes if at least one transaction has a
   counterparty country on the high-risk list. Otherwise it fails.
 - **Classification**: field-based
