@@ -487,7 +487,7 @@ with rs_col1:
 with rs_col2:
     if st.button(
         "→ Analyst" if st.session_state.view_as == "Manager" else "→ Manager",
-        use_container_width=True,
+        width="stretch",
     ):
         st.session_state.view_as = (
             "Analyst" if st.session_state.view_as == "Manager" else "Manager"
@@ -827,7 +827,7 @@ with tab2:
                 <span class="panel-subtitle">All submitted overrides</span>
               </div>
             </div>""", unsafe_allow_html=True)
-            st.dataframe(ov_fresh, use_container_width=True, hide_index=True)
+            st.dataframe(ov_fresh, width="stretch", hide_index=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1042,7 +1042,8 @@ with tab5:
         )
         st.dataframe(
             audit_df.sort_values("timestamp", ascending=False),
-            use_container_width=True,
+            width="stretch",
+
             hide_index=True,
         )
     st.markdown('</div>', unsafe_allow_html=True)
