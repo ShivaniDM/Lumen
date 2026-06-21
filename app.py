@@ -56,7 +56,7 @@ if missing:
     st.error(
         "Data files not found: "
         + ", ".join(str(p.relative_to(PROJECT_ROOT)) for p in missing)
-        + ". Run the app from the project root: `streamlit run lumen_ui/app.py`, "
+        + ". Run the app from the project root: `streamlit run app.py`, "
         "and make sure data/ has been generated."
     )
     st.stop()
@@ -439,6 +439,18 @@ div[data-testid="stNumberInput"] input{background:#fff !important;border:1px sol
 div[data-testid="stTextInput"] input{background:#fff !important;border:1px solid #999 !important;border-radius:2px !important;font-size:12px !important;color:#111 !important;}
 div[data-testid="stSelectbox"]>div>div{background:#fff !important;border:1px solid #999 !important;border-radius:2px !important;font-size:12px !important;color:#111 !important;}
 .stCheckbox label{font-size:12px !important;color:#1a1a1a !important;}
+div[data-testid="stWidgetLabel"],
+div[data-testid="stWidgetLabel"] *,
+div[data-testid="stWidgetLabel"] p,
+div[data-testid="stWidgetLabel"] span,
+div[data-testid="stWidgetLabel"] label,
+div[data-testid="stWidgetLabel"] div{
+  color:#1a1a1a !important;
+  -webkit-text-fill-color:#1a1a1a !important;
+  font-weight:700 !important;
+  font-size:12px !important;
+  opacity:1 !important;
+}
 .stButton>button{border-radius:3px !important;font-size:11px !important;font-weight:700 !important;letter-spacing:.04em !important;border:1px solid !important;}
 .stButton>button[kind="primary"]{background:linear-gradient(to bottom,#2166a8,#1a5276) !important;color:#fff !important;border-color:#154360 !important;}
 .stButton>button[kind="secondary"]{background:linear-gradient(to bottom,#f0f0f0,#e0e0e0) !important;color:#333 !important;border-color:#aaa !important;}
@@ -511,6 +523,84 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "  Change Log  ",
     "  Audit Trail  ",
 ])
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CASE FILE — modal popup (PeopleSoft-style window)
+# ═════════════════════════════════════════════════════════════════════════════
+@st.dialog("Case File", width="large")
+def show_case_dialog(alert_id: str, source: dict) -> None:
+    case = get_case_detail(alert_id, source)
+    c = case["customer"]
+    a = case["alert"]
+
+    st.markdown(f"""
+    <div class="case-panel">
+      <div class="case-panel-hdr">
+        <span class="case-panel-title">{c.get('name', a['customer_id'])} — {a['rule_triggered']}</span>
+        <span class="case-panel-id">{a['alert_id']} &nbsp;·&nbsp; {a['customer_id']}</span>
+      </div>
+      <div class="case-grid">
+        <div class="case-section">
+          <div class="case-section-title">Customer Profile</div>
+          <div class="field-row"><span class="field-lbl">Country</span><span class="field-val">{c.get('country','—')}</span></div>
+          <div class="field-row"><span class="field-lbl">Occupation</span><span class="field-val">{c.get('occupation','—')}</span></div>
+          <div class="field-row"><span class="field-lbl">KYC Status</span><span class="field-val">{c.get('kyc_status','—')}</span></div>
+          <div class="field-row"><span class="field-lbl">KYC Last Updated</span><span class="field-val">{c.get('kyc_last_updated','—')}</span></div>
+          <div class="field-row"><span class="field-lbl">KYC Current (12mo)</span><span class="field-val">{case['kyc_current_within_12mo']}</span></div>
+          <div class="field-row"><span class="field-lbl">Expected Monthly Volume</span><span class="field-val">{c.get('expected_monthly_volume','—')}</span></div>
+          <div class="field-row"><span class="field-lbl">Prior SAR Count</span><span class="field-val">{case['prior_sar']}</span></div>
+          <div class="field-row"><span class="field-lbl">Case Readiness</span><span class="field-val">{case['readiness']}%</span></div>
+        </div>
+        <div class="case-section">
+          <div class="case-section-title">Transactions</div>
+          {''.join(
+              f'<div class="field-row"><span class="field-lbl">{t["txn_id"]} · {t["timestamp"]}</span>'
+              f'<span class="field-val">{t["direction"]} {t["amount"]} ({t["counterparty_country"]})</span></div>'
+              for t in case["transactions"]
+          ) or '<div class="field-desc-txt">No transactions on file.</div>'}
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    claim_rows = "".join(
+        f'<div class="verify-row"><span>{cl["type"]} = {cl["asserted_value"]}</span>'
+        f'<span class="v-{"pass" if cl["result"]=="PASS" else "fail" if cl["result"]=="FAIL" else "review"}">{cl["result"]}</span></div>'
+        f'<div class="field-desc-txt" style="margin:-4px 0 6px 10px">{cl["note"]}</div>'
+        for cl in case["ai_claims"]
+    ) or '<div class="field-desc-txt">No AI claims drafted for this alert.</div>'
+
+    st.markdown(f"""
+    <div class="case-panel">
+      <div class="case-panel-hdr"><span class="case-panel-title">AI Claims &amp; Verification</span></div>
+      <div style="padding:14px 16px">{claim_rows}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if case["missing"]:
+        st.markdown(
+            f'<div class="warn-box">Missing evidence: {", ".join(case["missing"])}</div>',
+            unsafe_allow_html=True,
+        )
+
+    if case["review"]:
+        rv = case["review"]
+        st.markdown(f"""
+        <div class="case-panel">
+          <div class="case-panel-hdr"><span class="case-panel-title">Human Review</span></div>
+          <div style="padding:14px 16px;font-size:12px">
+            <b>{rv.get('reviewer','—')}</b> — {rv.get('draft_disposition','—')}
+            &nbsp;·&nbsp; evidence reviewed: {rv.get('evidence_reviewed','—')}<br/>
+            <b>Reason:</b> {rv.get('decision_reason') or '<i>(none recorded)</i>'}<br/>
+            <b>Final note:</b> {rv.get('final_note') or '<i>(none recorded)</i>'}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    if st.button("Close", key="close_case_dialog"):
+        st.session_state.selected_alert = None
+        st.rerun()
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 1 — ALERT QUEUE
@@ -586,6 +676,35 @@ with tab1:
 
     sel = st.session_state.selected_alert
 
+    # Severity filter + sort, applied to the queue before rendering.
+    fc1, fc2, _ = st.columns([2, 2, 4])
+    with fc1:
+        severity_filter = st.multiselect(
+            "Filter by severity",
+            ["High", "Medium", "Low"],
+            default=[],
+            key="severity_filter",
+        )
+    with fc2:
+        sort_order = st.selectbox(
+            "Sort by severity",
+            ["Queue order", "High to Low", "Low to High"],
+            key="severity_sort",
+        )
+
+    if severity_filter:
+        display_df = display_df[display_df["severity"].isin(severity_filter)]
+
+    SEV_RANK = {"High": 0, "Medium": 1, "Low": 2}
+    if sort_order == "High to Low":
+        display_df = display_df.sort_values(
+            by="severity", key=lambda s: s.map(SEV_RANK)
+        )
+    elif sort_order == "Low to High":
+        display_df = display_df.sort_values(
+            by="severity", key=lambda s: s.map(SEV_RANK), ascending=False
+        )
+
     rows_html = ""
     for i, (_, r) in enumerate(display_df.iterrows()):
         is_sel   = sel == r["alert_id"]
@@ -657,85 +776,25 @@ with tab1:
 
     st.html(table_html)
 
-    # Case selector (Streamlit can't take clicks from raw HTML rows, so the
-    # case file is opened via a selectbox keyed by alert_id).
+    # Case selector: pick an alert, then open its case file in a popup
+    # window (mirrors the Oracle PeopleSoft "open in new window" pattern).
     alert_ids = display_df["alert_id"].tolist()
     if alert_ids:
-        chosen = st.selectbox(
-            "Open case file",
-            ["— select —"] + alert_ids,
-            index=(alert_ids.index(sel) + 1) if sel in alert_ids else 0,
-        )
-        st.session_state.selected_alert = None if chosen == "— select —" else chosen
+        col_sel, col_btn = st.columns([4, 1])
+        with col_sel:
+            chosen = st.selectbox(
+                "Open case file",
+                alert_ids,
+                index=alert_ids.index(sel) if sel in alert_ids else 0,
+            )
+        with col_btn:
+            st.write("")
+            open_clicked = st.button("Open", key="open_case_file_btn")
+        if open_clicked:
+            st.session_state.selected_alert = chosen
 
     if st.session_state.selected_alert:
-        case = get_case_detail(st.session_state.selected_alert, source)
-        c = case["customer"]
-        a = case["alert"]
-
-        st.markdown(f"""
-        <div class="case-panel">
-          <div class="case-panel-hdr">
-            <span class="case-panel-title">{c.get('name', a['customer_id'])} — {a['rule_triggered']}</span>
-            <span class="case-panel-id">{a['alert_id']} &nbsp;·&nbsp; {a['customer_id']}</span>
-          </div>
-          <div class="case-grid">
-            <div class="case-section">
-              <div class="case-section-title">Customer Profile</div>
-              <div class="field-row"><span class="field-lbl">Country</span><span class="field-val">{c.get('country','—')}</span></div>
-              <div class="field-row"><span class="field-lbl">Occupation</span><span class="field-val">{c.get('occupation','—')}</span></div>
-              <div class="field-row"><span class="field-lbl">KYC Status</span><span class="field-val">{c.get('kyc_status','—')}</span></div>
-              <div class="field-row"><span class="field-lbl">KYC Last Updated</span><span class="field-val">{c.get('kyc_last_updated','—')}</span></div>
-              <div class="field-row"><span class="field-lbl">KYC Current (12mo)</span><span class="field-val">{case['kyc_current_within_12mo']}</span></div>
-              <div class="field-row"><span class="field-lbl">Expected Monthly Volume</span><span class="field-val">{c.get('expected_monthly_volume','—')}</span></div>
-              <div class="field-row"><span class="field-lbl">Prior SAR Count</span><span class="field-val">{case['prior_sar']}</span></div>
-              <div class="field-row"><span class="field-lbl">Case Readiness</span><span class="field-val">{case['readiness']}%</span></div>
-            </div>
-            <div class="case-section">
-              <div class="case-section-title">Transactions</div>
-              {''.join(
-                  f'<div class="field-row"><span class="field-lbl">{t["txn_id"]} · {t["timestamp"]}</span>'
-                  f'<span class="field-val">{t["direction"]} {t["amount"]} ({t["counterparty_country"]})</span></div>'
-                  for t in case["transactions"]
-              ) or '<div class="field-desc-txt">No transactions on file.</div>'}
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        claim_rows = "".join(
-            f'<div class="verify-row"><span>{cl["type"]} = {cl["asserted_value"]}</span>'
-            f'<span class="v-{"pass" if cl["result"]=="PASS" else "fail" if cl["result"]=="FAIL" else "review"}">{cl["result"]}</span></div>'
-            f'<div class="field-desc-txt" style="margin:-4px 0 6px 10px">{cl["note"]}</div>'
-            for cl in case["ai_claims"]
-        ) or '<div class="field-desc-txt">No AI claims drafted for this alert.</div>'
-
-        st.markdown(f"""
-        <div class="case-panel">
-          <div class="case-panel-hdr"><span class="case-panel-title">AI Claims &amp; Verification</span></div>
-          <div style="padding:14px 16px">{claim_rows}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if case["missing"]:
-            st.markdown(
-                f'<div class="warn-box">Missing evidence: {", ".join(case["missing"])}</div>',
-                unsafe_allow_html=True,
-            )
-
-        if case["review"]:
-            rv = case["review"]
-            st.markdown(f"""
-            <div class="case-panel">
-              <div class="case-panel-hdr"><span class="case-panel-title">Human Review</span></div>
-              <div style="padding:14px 16px;font-size:12px">
-                <b>{rv.get('reviewer','—')}</b> — {rv.get('draft_disposition','—')}
-                &nbsp;·&nbsp; evidence reviewed: {rv.get('evidence_reviewed','—')}<br/>
-                <b>Reason:</b> {rv.get('decision_reason') or '<i>(none recorded)</i>'}<br/>
-                <b>Final note:</b> {rv.get('final_note') or '<i>(none recorded)</i>'}
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+        show_case_dialog(st.session_state.selected_alert, source)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
