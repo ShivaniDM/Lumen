@@ -1,6 +1,0 @@
-alert_id,customer,rule_triggered,severity,case_readiness,ai_used,status,assigned_analyst
-ALT-001,Jane Doe,Rapid Movement,High,62%,Yes,Pending Review,S. Mayekar
-ALT-002,John Smith,Large Cash Deposit,Medium,80%,Yes,In Progress,S. Mayekar
-ALT-003,Maria Garcia,Structuring,High,45%,No,Pending Review,S. Mayekar
-ALT-004,David Kim,Wire Transfer Pattern,Low,91%,Yes,Closed,S. Mayekar
-ALT-005,Priya Patel,Unusual Volume,High,33%,Yes,Pending Review,S. Mayekar
