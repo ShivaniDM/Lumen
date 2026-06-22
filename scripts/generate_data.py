@@ -634,6 +634,47 @@ def build_dataset() -> dict[str, pd.DataFrame]:
             }
         )
 
+    # ======================================================================
+    # WEEK 5 DEMO ENRICHMENT (Hero Case A). Extra supporting data so ALERT001
+    # renders as a fuller case in the UI. Appended last so every previously
+    # assigned txn_id and review_id stays stable. None of this changes the
+    # planted contradiction: prior_sar_count for CUST0001 stays 0, so
+    # verify_prior_sar_history still returns FAIL for the AI claim above.
+    # ======================================================================
+    transactions.append(
+        {"txn_id": next_txn(), "customer_id": "CUST0001", "amount": 4200.0, "direction": "in",
+         "counterparty_country": "US", "timestamp": iso(datetime(2026, 5, 12, 10, 30))}
+    )
+    transactions.append(
+        {"txn_id": next_txn(), "customer_id": "CUST0001", "amount": 15000.0, "direction": "in",
+         "counterparty_country": "GB", "timestamp": iso(datetime(2026, 5, 18, 14, 5))}
+    )
+    transactions.append(
+        {"txn_id": next_txn(), "customer_id": "CUST0001", "amount": 6300.0, "direction": "out",
+         "counterparty_country": "US", "timestamp": iso(datetime(2026, 5, 20, 16, 45))}
+    )
+    add_evidence(
+        "ALERT001",
+        [("transaction_history", True), ("counterparty_screening", True),
+         ("source_of_funds_corroboration", False)],
+        datetime(2026, 5, 21, 11, 0),
+    )
+    # A completed human review on ALERT001 that catches the AI overreach. Added
+    # after the existing reviews so it is REV003, leaving REV001 (Hero B) intact.
+    human_reviews.append(
+        {
+            "review_id": next_rev(),
+            "alert_id": "ALERT001",
+            "reviewer": "reviewer:mchen",
+            "evidence_reviewed": True,
+            "draft_disposition": "edited",
+            "decision_reason": "AI asserted prior SAR history, but prior_cases shows zero SARs for this customer. Claim rejected as unsupported.",
+            "final_note": "Large inbound wire reviewed; no prior SAR on record. Enhanced monitoring continued, no SAR filed at this time.",
+            "final_action": "monitor",
+            "reviewed_at": iso(datetime(2026, 5, 22, 9, 30)),
+        }
+    )
+
     frames = {
         "customers": pd.DataFrame(customers),
         "transactions": pd.DataFrame(transactions),
@@ -647,6 +688,104 @@ def build_dataset() -> dict[str, pd.DataFrame]:
     return frames
 
 
+PENDING_OVERRIDE_COLUMNS = [
+    "change_id", "alert_id", "field_changed", "old_value", "new_value",
+    "changed_by_id", "changed_by_name", "changed_at", "reason",
+    "status", "reviewed_by", "reviewed_at",
+]
+
+AUDIT_COLUMNS = ["log_id", "timestamp", "actor", "action", "alert_id", "details_json"]
+
+# Action names the live app actually emits (src/audit.py callers in
+# src/llm_drafter.py, src/pipeline.py, and app.py). The seed below uses ONLY
+# these, so the historical trail and the live trail share one vocabulary.
+LIVE_AUDIT_ACTIONS = frozenset(
+    [
+        "draft_started", "draft_completed", "claim_dropped", "draft_failed",
+        "alert_processing_started", "alert_processing_finished", "claim_verified",
+        "field_override", "override_review", "keyword_added", "keyword_removed",
+        "risk_settings_saved",
+    ]
+)
+
+
+def build_pending_overrides() -> list[dict]:
+    """Deterministic pending override requests for the Manager Review screen.
+
+    All rows are status 'pending' with blank reviewer fields, and every
+    alert_id references a real alert in alerts.csv.
+    """
+    return [
+        {
+            "change_id": "CHG-SEED-001", "alert_id": "ALERT002",
+            "field_changed": "severity", "old_value": "high", "new_value": "med",
+            "changed_by_id": "EMP-204", "changed_by_name": "Jordan Avery",
+            "changed_at": iso(datetime(2026, 5, 23, 9, 15)),
+            "reason": "Customer supplied a scholarship grant letter explaining the 45000 inflow. Recommend downgrading severity pending manager sign-off.",
+            "status": "pending", "reviewed_by": "", "reviewed_at": "",
+        },
+        {
+            "change_id": "CHG-SEED-002", "alert_id": "ALERT005",
+            "field_changed": "disposition", "old_value": "open", "new_value": "escalate",
+            "changed_by_id": "EMP-217", "changed_by_name": "Priya Raman",
+            "changed_at": iso(datetime(2026, 5, 26, 13, 40)),
+            "reason": "Dormant business account moved 60000 to a high-risk jurisdiction. Requesting escalation to investigations.",
+            "status": "pending", "reviewed_by": "", "reviewed_at": "",
+        },
+        {
+            "change_id": "CHG-SEED-003", "alert_id": "ALERT001",
+            "field_changed": "risk_rating", "old_value": "high", "new_value": "medium",
+            "changed_by_id": "EMP-204", "changed_by_name": "Jordan Avery",
+            "changed_at": iso(datetime(2026, 5, 22, 10, 5)),
+            "reason": "AI prior SAR claim was rejected on review. With that claim removed, residual risk is medium. Manager confirmation requested.",
+            "status": "pending", "reviewed_by": "", "reviewed_at": "",
+        },
+    ]
+
+
+def build_audit_seed() -> list[dict]:
+    """Deterministic historical audit events for the governance screen.
+
+    Uses ONLY action names in LIVE_AUDIT_ACTIONS. Timestamps precede REF_DATE.
+    """
+    def row(n, ts, actor, action, alert_id, details):
+        return {
+            "log_id": f"LOG-SEED-{n:03d}",
+            "timestamp": ts,
+            "actor": actor,
+            "action": action,
+            "alert_id": alert_id,
+            "details_json": json.dumps(details, sort_keys=True),
+        }
+
+    return [
+        row(1, iso(datetime(2026, 5, 21, 14, 0, 5)), "llm_drafter", "draft_started", "ALERT001", {}),
+        row(2, iso(datetime(2026, 5, 21, 14, 0, 9)), "llm_drafter", "draft_completed", "ALERT001", {"claim_count": 2}),
+        row(3, iso(datetime(2026, 5, 21, 14, 5, 0)), "pipeline", "claim_verified", "ALERT001",
+            {"claim_type": "prior_sar_history", "status": "FAIL", "reason": "prior_sar_count=0 contradicts asserted prior SAR history"}),
+        row(4, iso(datetime(2026, 5, 22, 9, 30, 0)), "ui:EMP-204", "field_override", "ALERT001",
+            {"change_id": "CHG-SEED-003", "field": "risk_rating", "old": "high", "new": "medium"}),
+        row(5, iso(datetime(2026, 5, 23, 9, 15, 0)), "ui:EMP-204", "field_override", "ALERT002",
+            {"change_id": "CHG-SEED-001", "field": "severity", "old": "high", "new": "med"}),
+        row(6, iso(datetime(2026, 5, 25, 8, 31, 0)), "llm_drafter", "draft_started", "ALERT005", {}),
+        row(7, iso(datetime(2026, 5, 25, 8, 31, 4)), "llm_drafter", "claim_dropped", "ALERT005",
+            {"claim_type": "high_risk_country", "reason": "missing_evidence_refs"}),
+        row(8, iso(datetime(2026, 5, 25, 8, 31, 5)), "llm_drafter", "draft_completed", "ALERT005", {"claim_count": 1}),
+        row(9, iso(datetime(2026, 5, 25, 8, 35, 0)), "pipeline", "claim_verified", "ALERT005",
+            {"claim_type": "high_risk_country", "status": "PASS", "reason": "transaction to IR"}),
+        row(10, iso(datetime(2026, 5, 26, 13, 40, 0)), "ui:EMP-217", "field_override", "ALERT005",
+            {"change_id": "CHG-SEED-002", "field": "disposition", "old": "open", "new": "escalate"}),
+        row(11, iso(datetime(2026, 5, 27, 10, 0, 0)), "ui:EMP-300", "risk_settings_saved", "",
+            {"changes": {"high_risk_threshold": "10000"}}),
+        row(12, iso(datetime(2026, 5, 27, 10, 2, 0)), "ui:EMP-300", "keyword_added", "",
+            {"typology": "structuring", "keyword": "smurfing"}),
+        row(13, iso(datetime(2026, 5, 27, 10, 3, 0)), "ui:EMP-300", "keyword_removed", "",
+            {"typology": "structuring", "keyword": "obsolete_term"}),
+        row(14, iso(datetime(2026, 5, 28, 15, 12, 0)), "ui:EMP-108", "override_review", "ALERT007",
+            {"change_id": "CHG-HIST-009", "decision": "approved"}),
+    ]
+
+
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     frames = build_dataset()
@@ -655,11 +794,20 @@ def main() -> None:
         df.to_csv(out, index=False)
         print(f"wrote {out.relative_to(PROJECT_ROOT)}  ({len(df)} rows)")
 
-    # Seed an empty audit_log.csv with just the header. audit.log_event appends
-    # to it at runtime. It is append-only and git-ignored.
+    # WEEK 5 DEMO SEED: pending overrides for the Manager Review screen.
+    overrides_df = pd.DataFrame(build_pending_overrides(), columns=PENDING_OVERRIDE_COLUMNS)
+    overrides_path = DATA_DIR / "pending_overrides.csv"
+    overrides_df.to_csv(overrides_path, index=False)
+    print(f"wrote {overrides_path.relative_to(PROJECT_ROOT)}  ({len(overrides_df)} rows)")
+
+    # WEEK 5 DEMO SEED: historical audit trail so the governance screen is not
+    # empty. Seeded events use ONLY action names the live app emits (see
+    # LIVE_AUDIT_ACTIONS). audit.log_event appends new events after these, so
+    # there is one canonical, coherent trail. This file is tracked (not ignored).
+    audit_df = pd.DataFrame(build_audit_seed(), columns=AUDIT_COLUMNS)
     audit_path = DATA_DIR / "audit_log.csv"
-    audit_path.write_text("log_id,timestamp,actor,action,alert_id,details_json\n", encoding="utf-8")
-    print(f"wrote {audit_path.relative_to(PROJECT_ROOT)}  (header only)")
+    audit_df.to_csv(audit_path, index=False)
+    print(f"wrote {audit_path.relative_to(PROJECT_ROOT)}  ({len(audit_df)} seeded rows)")
 
     print(f"\nDone. Reproducible with SEED={SEED}, REF_DATE={REF_DATE.isoformat()}.")
 

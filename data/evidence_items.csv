@@ -78,3 +78,6 @@ ALERT038,id_document,True,2026-05-28T09:00:00
 ALERT038,transaction_history,False,2026-05-28T09:00:00
 ALERT039,id_document,True,2026-05-28T09:00:00
 ALERT039,transaction_history,False,2026-05-28T09:00:00
+ALERT001,transaction_history,True,2026-05-21T11:00:00
+ALERT001,counterparty_screening,True,2026-05-21T11:00:00
+ALERT001,source_of_funds_corroboration,False,2026-05-21T11:00:00
