@@ -22,7 +22,7 @@ LIVE_AUDIT_ACTIONS = {
     "draft_started", "draft_completed", "claim_dropped", "draft_failed",
     "alert_processing_started", "alert_processing_finished", "claim_verified",
     "field_override", "override_review", "keyword_added", "keyword_removed",
-    "risk_settings_saved",
+    "risk_settings_saved", "draft_empty",
 }
 
 EXPECTED_OVERRIDE_COLUMNS = [
