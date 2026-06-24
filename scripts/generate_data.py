@@ -675,6 +675,51 @@ def build_dataset() -> dict[str, pd.DataFrame]:
         }
     )
 
+    # ======================================================================
+    # WEEK 5 DEMO: case readiness distribution.
+    # app.py computes readiness live as (available evidence / total evidence)
+    # per alert (case_readiness_pct). We do NOT store a readiness score, which
+    # would duplicate and drift from that live formula. Instead we shape each
+    # alert's evidence completeness so the COMPUTED distribution is:
+    #   - 2 blocked alerts at ~50% (Hero Moment 2): ALERT004, ALERT006
+    #   - 2 below-threshold alerts at 60-70%: ALERT002 (60%), ALERT005 (70%)
+    #   - every other alert at 88-97% (Lumen pre-assembled, demo-ready)
+    #   - overall average lands at about 89%
+    # This pass rebuilds evidence_items so the readiness math is exact and
+    # deterministic. It supersedes the piecemeal evidence added above.
+    # ======================================================================
+    READINESS_ROSTER = [
+        "id_document", "proof_of_address", "source_of_funds", "kyc_refresh",
+        "transaction_history", "counterparty_screening", "sanctions_screening",
+        "adverse_media_check", "beneficial_ownership", "expected_activity_profile",
+        "pep_screening", "account_opening_docs", "wire_details",
+        "customer_correspondence", "risk_assessment_memo", "edd_review",
+    ]
+    BLOCKED_RATIOS = {"ALERT004": (5, 10), "ALERT006": (5, 10)}      # 50%
+    BELOW_RATIOS = {"ALERT002": (6, 10), "ALERT005": (7, 10)}        # 60%, 70%
+    READY_RATIOS = [(14, 15), (15, 16)]                             # 93%, 94%
+    readiness_checked = datetime(2026, 5, 28, 9, 0)
+
+    rebuilt_evidence: list[dict] = []
+    for a_idx, a in enumerate(alerts):
+        aid = a["alert_id"]
+        if aid in BLOCKED_RATIOS:
+            available, total = BLOCKED_RATIOS[aid]
+        elif aid in BELOW_RATIOS:
+            available, total = BELOW_RATIOS[aid]
+        else:
+            available, total = READY_RATIOS[a_idx % len(READY_RATIOS)]
+        for idx in range(total):
+            rebuilt_evidence.append(
+                {
+                    "alert_id": aid,
+                    "item_type": READINESS_ROSTER[idx % len(READINESS_ROSTER)],
+                    "available": idx < available,
+                    "last_checked": iso(readiness_checked),
+                }
+            )
+    evidence_items = rebuilt_evidence
+
     frames = {
         "customers": pd.DataFrame(customers),
         "transactions": pd.DataFrame(transactions),
