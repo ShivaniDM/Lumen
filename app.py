@@ -309,7 +309,17 @@ if "edit_mode"         not in st.session_state: st.session_state.edit_mode      
 if "staged_edits"      not in st.session_state: st.session_state.staged_edits      = {}
 if "edit_row"          not in st.session_state: st.session_state.edit_row          = None
 if "selected_alert"    not in st.session_state: st.session_state.selected_alert    = None
+if "case_search"       not in st.session_state: st.session_state.case_search       = "— select —"
 if "settings_cl"       not in st.session_state: st.session_state.settings_cl       = []
+
+# A clicked alert row is an <a href="?alert=<id>"> link (no JS — Streamlit
+# strips onclick from injected HTML). The URL query param is the single source
+# of truth for which case is open, so a row click and the "Open case file"
+# selectbox are the same action.
+_qp_alert = st.query_params.get("alert")
+st.session_state.selected_alert = (
+    _qp_alert if _qp_alert in alerts_df["alert_id"].values else None
+)
 
 if "risk_settings" not in st.session_state:
     st.session_state.risk_settings = {
@@ -419,8 +429,20 @@ st.markdown("""
 .v-review{color:#6b3800;font-weight:700;font-size:10px;background:#fef3e2;padding:2px 6px;border:1px solid #dba;border-radius:2px;}
 .warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:8px 12px;font-size:12px;color:#5d4000;margin:8px 0 0 0;}
 
+/* Claim card — the contradiction is the centerpiece: AI asserted X /
+   evidence shows Y / result Z, all in explicit dark text. */
+.claim-card{background:#fff;border:1px solid #d8d8d8;border-left:5px solid #999;margin:0 0 12px 0;}
+.claim-card.fail{border-left-color:#b03a2e;}
+.claim-card.pass{border-left-color:#1e8449;}
+.claim-card.review{border-left-color:#b9770e;}
+.claim-line{display:flex;gap:12px;padding:8px 14px;font-size:13px;align-items:baseline;border-bottom:1px solid #ececec;}
+.claim-line .claim-tag{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#777;min-width:110px;flex-shrink:0;}
+.claim-line .claim-val{color:#1a1a1a !important;font-weight:600;}
+.claim-result-line{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:#f2f2f2;}
+.claim-result-line .claim-tag{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#555;}
+
 .settings-section-title{font-size:11px;font-weight:700;color:#1a5276;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;}
-.field-desc-txt{font-size:11px;color:#666;margin:2px 0 8px 0;line-height:1.4;}
+.field-desc-txt{font-size:11px;color:#333;margin:2px 0 8px 0;line-height:1.4;}
 .kw-chip{display:inline-block;padding:2px 8px;background:#e8eeff;color:#1a2e8c;border:1px solid #99aacc;border-radius:2px;font-size:11px;font-weight:500;margin:2px;}
 
 .log-tbl{width:100%;border-collapse:collapse;font-size:12px;}
@@ -439,18 +461,26 @@ div[data-testid="stNumberInput"] input{background:#fff !important;border:1px sol
 div[data-testid="stTextInput"] input{background:#fff !important;border:1px solid #999 !important;border-radius:2px !important;font-size:12px !important;color:#111 !important;}
 div[data-testid="stSelectbox"]>div>div{background:#fff !important;border:1px solid #999 !important;border-radius:2px !important;font-size:12px !important;color:#111 !important;}
 .stCheckbox label{font-size:12px !important;color:#1a1a1a !important;}
-div[data-testid="stWidgetLabel"],
-div[data-testid="stWidgetLabel"] *,
-div[data-testid="stWidgetLabel"] p,
-div[data-testid="stWidgetLabel"] span,
-div[data-testid="stWidgetLabel"] label,
-div[data-testid="stWidgetLabel"] div{
+.stCheckbox label p{color:#1a1a1a !important;}
+/* In Streamlit 1.58 the widget-label testid sits on a <label> element (not a
+   <div>), so target the label directly — this is what darkens the Risk
+   Settings field labels ("High severity trigger", "KYC staleness limit"…). */
+label[data-testid="stWidgetLabel"],
+label[data-testid="stWidgetLabel"] *,
+label[data-testid="stWidgetLabel"] p{
   color:#1a1a1a !important;
   -webkit-text-fill-color:#1a1a1a !important;
   font-weight:700 !important;
   font-size:12px !important;
   opacity:1 !important;
 }
+/* Keep native popovers/menus and the dataframe grid on the light theme,
+   regardless of the OS/browser dark-mode preference. */
+div[data-testid="stMultiSelect"] div[data-baseweb="select"]>div{background:#fff !important;color:#111 !important;border:1px solid #999 !important;}
+ul[data-baseweb="menu"],ul[role="listbox"]{background:#fff !important;}
+ul[data-baseweb="menu"] li,li[role="option"]{background:#fff !important;color:#111 !important;}
+div[data-testid="stDataFrame"]{background:#fff !important;}
+div[data-testid="stDataFrame"] [data-testid="stTable"]{background:#fff !important;}
 .stButton>button{border-radius:3px !important;font-size:11px !important;font-weight:700 !important;letter-spacing:.04em !important;border:1px solid !important;}
 .stButton>button[kind="primary"]{background:linear-gradient(to bottom,#2166a8,#1a5276) !important;color:#fff !important;border-color:#154360 !important;}
 .stButton>button[kind="secondary"]{background:linear-gradient(to bottom,#f0f0f0,#e0e0e0) !important;color:#333 !important;border-color:#aaa !important;}
@@ -533,22 +563,57 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
     c = case["customer"]
     a = case["alert"]
 
+    # Case header
     st.markdown(f"""
-    <div class="case-panel">
-      <div class="case-panel-hdr">
-        <span class="case-panel-title">{c.get('name', a['customer_id'])} — {a['rule_triggered']}</span>
-        <span class="case-panel-id">{a['alert_id']} &nbsp;·&nbsp; {a['customer_id']}</span>
-      </div>
+    <div class="case-panel-hdr" style="border:1px solid #b0b0b0;">
+      <span class="case-panel-title">{c.get('name', a['customer_id'])} — {a['rule_triggered']}</span>
+      <span class="case-panel-id">{a['alert_id']} &nbsp;·&nbsp; {a['customer_id']}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # HERO: AI Claims & Verification — the contradiction is the centerpiece,
+    # read as "AI asserted X / evidence shows Y / result Z" in dark text.
+    def _claim_card(cl):
+        cls = "pass" if cl["result"] == "PASS" else "fail" if cl["result"] == "FAIL" else "review"
+        badge = f'v-{cls}'
+        return (
+            f'<div class="claim-card {cls}">'
+            f'<div class="claim-line"><span class="claim-tag">AI Asserted</span>'
+            f'<span class="claim-val">{cl["type"]} = {cl["asserted_value"]}</span></div>'
+            f'<div class="claim-line"><span class="claim-tag">Evidence Shows</span>'
+            f'<span class="claim-val">{cl["note"]}</span></div>'
+            f'<div class="claim-result-line"><span class="claim-tag">Verification Result</span>'
+            f'<span class="{badge}" style="font-size:12px;padding:3px 9px;">{cl["result"]}</span></div>'
+            f'</div>'
+        )
+
+    claim_rows = "".join(_claim_card(cl) for cl in case["ai_claims"]) \
+        or '<div class="field-desc-txt">No AI claims drafted for this alert.</div>'
+
+    st.markdown(f"""
+    <div class="case-panel" style="margin-top:12px;">
+      <div class="case-panel-hdr"><span class="case-panel-title">⚖ AI Claim Verification</span></div>
+      <div style="padding:14px 16px;background:#f5f5f5;">{claim_rows}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if case["missing"]:
+        st.markdown(
+            f'<div class="warn-box">Missing evidence: {", ".join(case["missing"])}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Supporting detail: customer profile + transactions
+    st.markdown(f"""
+    <div class="case-panel" style="margin-top:12px;">
       <div class="case-grid">
         <div class="case-section">
           <div class="case-section-title">Customer Profile</div>
           <div class="field-row"><span class="field-lbl">Country</span><span class="field-val">{c.get('country','—')}</span></div>
           <div class="field-row"><span class="field-lbl">Occupation</span><span class="field-val">{c.get('occupation','—')}</span></div>
           <div class="field-row"><span class="field-lbl">KYC Status</span><span class="field-val">{c.get('kyc_status','—')}</span></div>
-          <div class="field-row"><span class="field-lbl">KYC Last Updated</span><span class="field-val">{c.get('kyc_last_updated','—')}</span></div>
           <div class="field-row"><span class="field-lbl">KYC Current (12mo)</span><span class="field-val">{case['kyc_current_within_12mo']}</span></div>
-          <div class="field-row"><span class="field-lbl">Expected Monthly Volume</span><span class="field-val">{c.get('expected_monthly_volume','—')}</span></div>
-          <div class="field-row"><span class="field-lbl">Prior SAR Count</span><span class="field-val">{case['prior_sar']}</span></div>
+          <div class="field-row"><span class="field-lbl">Prior SAR Count</span><span class="field-val" style="color:{'#8b0000' if case['prior_sar'] > 0 else '#1a5c1a'};font-weight:700;">{case['prior_sar']}</span></div>
           <div class="field-row"><span class="field-lbl">Case Readiness</span><span class="field-val">{case['readiness']}%</span></div>
         </div>
         <div class="case-section">
@@ -563,30 +628,10 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    claim_rows = "".join(
-        f'<div class="verify-row"><span>{cl["type"]} = {cl["asserted_value"]}</span>'
-        f'<span class="v-{"pass" if cl["result"]=="PASS" else "fail" if cl["result"]=="FAIL" else "review"}">{cl["result"]}</span></div>'
-        f'<div class="field-desc-txt" style="margin:-4px 0 6px 10px">{cl["note"]}</div>'
-        for cl in case["ai_claims"]
-    ) or '<div class="field-desc-txt">No AI claims drafted for this alert.</div>'
-
-    st.markdown(f"""
-    <div class="case-panel">
-      <div class="case-panel-hdr"><span class="case-panel-title">AI Claims &amp; Verification</span></div>
-      <div style="padding:14px 16px">{claim_rows}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if case["missing"]:
-        st.markdown(
-            f'<div class="warn-box">Missing evidence: {", ".join(case["missing"])}</div>',
-            unsafe_allow_html=True,
-        )
-
     if case["review"]:
         rv = case["review"]
         st.markdown(f"""
-        <div class="case-panel">
+        <div class="case-panel" style="margin-top:12px;">
           <div class="case-panel-hdr"><span class="case-panel-title">Human Review</span></div>
           <div style="padding:14px 16px;font-size:12px">
             <b>{rv.get('reviewer','—')}</b> — {rv.get('draft_disposition','—')}
@@ -676,8 +721,26 @@ with tab1:
 
     sel = st.session_state.selected_alert
 
-    # Severity filter + sort, applied to the queue before rendering.
-    fc1, fc2, _ = st.columns([2, 2, 4])
+    # Case search + severity filter/sort, all at the TOP so you don't scroll
+    # past the whole queue to look up a case. The case search doubles as the
+    # "Open case file" control and shares one mechanism with row clicks: both
+    # write the ?alert= query param.
+    all_alert_ids = display_df["alert_id"].tolist()
+    fc0, fc1, fc2 = st.columns([3, 2, 2])
+    with fc0:
+        options = ["— select —"] + all_alert_ids
+        want = st.session_state.selected_alert if st.session_state.selected_alert in all_alert_ids else "— select —"
+        if st.session_state.get("case_search", "— select —") != want:
+            st.session_state.case_search = want
+
+        def _pick_case():
+            v = st.session_state.case_search
+            if v == "— select —":
+                st.query_params.pop("alert", None)
+            else:
+                st.query_params["alert"] = v
+
+        st.selectbox("Open case file", options, key="case_search", on_change=_pick_case)
     with fc1:
         severity_filter = st.multiselect(
             "Filter by severity",
@@ -737,17 +800,27 @@ with tab1:
         if has_pend:
             ana_html += '&nbsp;<span style="font-size:11px;">&#8987;</span>'
 
+        # Each cell is an <a href="?alert=<id>"> link (no JS — Streamlit strips
+        # onclick). Padding lives on the <a> so clicking anywhere in the cell
+        # navigates and opens that case file.
+        def _cell(content, extra=""):
+            return (
+                f'<td><a href="?alert={r["alert_id"]}" target="_self" '
+                f'style="display:block;padding:8px 12px;text-decoration:none;'
+                f'color:inherit;{extra}">{content}</a></td>'
+            )
+
         rows_html += (
             f'<tr style="{row_style}">'
-            f'<td style="font-weight:700;color:#1a5276;font-size:11px;">{r["alert_id"]}</td>'
-            f'<td style="font-weight:600;">{r["customer"]}</td>'
-            f'<td>{r["rule"]}</td>'
-            f'<td>{sev_html}</td>'
-            f'<td>{rb_html}</td>'
-            f'<td>{ai_html}</td>'
-            f'<td>{sta_html}</td>'
-            f'<td>{ana_html}</td>'
-            f'</tr>'
+            + _cell(r["alert_id"], "font-weight:700;color:#1a5276;font-size:11px;")
+            + _cell(r["customer"], "font-weight:600;")
+            + _cell(r["rule"])
+            + _cell(sev_html)
+            + _cell(rb_html)
+            + _cell(ai_html)
+            + _cell(sta_html)
+            + _cell(ana_html)
+            + '</tr>'
         )
 
     table_html = f"""
@@ -758,9 +831,10 @@ with tab1:
        color:#1a3a5c; border-right:1px solid #b8ccd8;
        border-bottom:2px solid #8aaabf; white-space:nowrap; }}
   .lv-table th:last-child {{ border-right:none; }}
-  .lv-table td {{ padding:8px 12px; border-bottom:1px solid #e8e8e8;
+  .lv-table td {{ padding:0; border-bottom:1px solid #e8e8e8;
        border-right:1px solid #f0f0f0; color:#1a1a1a; vertical-align:middle; background:#fff; }}
   .lv-table td:last-child {{ border-right:none; }}
+  .lv-table td a {{ color:inherit; }}
   .lv-table tbody tr:nth-child(even) td {{ background:#f4f7fa; }}
   .lv-table tbody tr:nth-child(odd) td {{ background:#fff; }}
   .lv-table tbody tr:hover td {{ background:#ddeeff !important; cursor:pointer; }}
@@ -774,25 +848,12 @@ with tab1:
   <tbody>{rows_html}</tbody>
 </table>"""
 
-    st.html(table_html)
+    # Rendered via st.markdown (not st.html) so the <a> row links navigate the
+    # page — st.html sandboxes the table in an iframe and links wouldn't work.
+    st.markdown(table_html, unsafe_allow_html=True)
 
-    # Case selector: pick an alert, then open its case file in a popup
-    # window (mirrors the Oracle PeopleSoft "open in new window" pattern).
-    alert_ids = display_df["alert_id"].tolist()
-    if alert_ids:
-        col_sel, col_btn = st.columns([4, 1])
-        with col_sel:
-            chosen = st.selectbox(
-                "Open case file",
-                alert_ids,
-                index=alert_ids.index(sel) if sel in alert_ids else 0,
-            )
-        with col_btn:
-            st.write("")
-            open_clicked = st.button("Open", key="open_case_file_btn")
-        if open_clicked:
-            st.session_state.selected_alert = chosen
-
+    # Case search + row clicks both set ?alert=<id>, read into selected_alert
+    # at the top of the script; open the popup case file for it.
     if st.session_state.selected_alert:
         show_case_dialog(st.session_state.selected_alert, source)
 
@@ -907,96 +968,85 @@ with tab3:
     rc1, rc2 = st.columns(2, gap="large")
 
     with rc1:
-        st.markdown(
-            '<div style="background:#fff;border:1px solid #b0b0b0;'
-            'padding:16px 18px;margin-bottom:14px">',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="settings-section-title">Severity Thresholds</div>', unsafe_allow_html=True)
-        st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review (Ryan severity matrix §10).</p>', unsafe_allow_html=True)
-        new_high   = st.number_input("High severity trigger (≥)",   50, 100,         rs["high_threshold"],       5,  key="ni_high")
-        st.markdown('<p class="field-desc-txt"><b>Medium threshold</b> — alerts between this and High get standard analyst review.</p>', unsafe_allow_html=True)
-        new_medium = st.number_input("Medium severity trigger (≥)", 20, int(new_high)-5, min(rs["medium_threshold"], new_high-5), 5, key="ni_med")
-        st.markdown('</div>', unsafe_allow_html=True)
+        # st.container(border=True) draws the bordered box AND holds the widgets
+        # inside it — unlike raw <div> wrappers, which Streamlit renders as an
+        # empty box while the widget lands outside (the "empty white box" bug).
+        with st.container(border=True):
+            st.markdown('<div class="settings-section-title">Severity Thresholds</div>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review (Ryan severity matrix §10).</p>', unsafe_allow_html=True)
+            new_high   = st.number_input("High severity trigger (≥)",   50, 100,         rs["high_threshold"],       5,  key="ni_high")
+            st.markdown('<p class="field-desc-txt"><b>Medium threshold</b> — alerts between this and High get standard analyst review.</p>', unsafe_allow_html=True)
+            new_medium = st.number_input("Medium severity trigger (≥)", 20, int(new_high)-5, min(rs["medium_threshold"], new_high-5), 5, key="ni_med")
 
-        st.markdown(
-            '<div style="background:#fff;border:1px solid #b0b0b0;padding:16px 18px">',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="settings-section-title">Case Readiness Gates</div>', unsafe_allow_html=True)
-        st.markdown('<p class="field-desc-txt"><b>KYC staleness limit</b> — profiles older than this (months) fail the readiness check. Default: 12.</p>', unsafe_allow_html=True)
-        new_kyc    = st.number_input("KYC staleness limit (months)",         3,  36,  rs["kyc_staleness_months"],  3,  key="ni_kyc")
-        st.markdown('<p class="field-desc-txt"><b>Transaction history</b> — minimum days required before AI can draft. Default: 90.</p>', unsafe_allow_html=True)
-        new_txn    = st.number_input("Transaction history required (days)",  30, 180, rs["txn_history_days"],      30, key="ni_txn")
-        st.markdown('<br>', unsafe_allow_html=True)
-        new_cpty   = st.checkbox("Require counterparty identification", value=rs["require_counterparty_id"])
-        new_sar    = st.checkbox("Require prior SAR history check",     value=rs["require_prior_sar_check"])
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown('<div class="settings-section-title">Case Readiness Gates</div>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>KYC staleness limit</b> — profiles older than this (months) fail the readiness check. Default: 12.</p>', unsafe_allow_html=True)
+            new_kyc    = st.number_input("KYC staleness limit (months)",         3,  36,  rs["kyc_staleness_months"],  3,  key="ni_kyc")
+            st.markdown('<p class="field-desc-txt"><b>Transaction history</b> — minimum days required before AI can draft. Default: 90.</p>', unsafe_allow_html=True)
+            new_txn    = st.number_input("Transaction history required (days)",  30, 180, rs["txn_history_days"],      30, key="ni_txn")
+            st.markdown('<br>', unsafe_allow_html=True)
+            new_cpty   = st.checkbox("Require counterparty identification", value=rs["require_counterparty_id"])
+            new_sar    = st.checkbox("Require prior SAR history check",     value=rs["require_prior_sar_check"])
 
     with rc2:
-        st.markdown(
-            '<div style="background:#fff;border:1px solid #b0b0b0;'
-            'padding:16px 18px;margin-bottom:14px">',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="settings-section-title">AI & Governance Controls</div>', unsafe_allow_html=True)
-        st.markdown('<p class="field-desc-txt"><b>Block AI draft until readiness passes</b> — core build principle. Disabling violates the governance posture.</p>', unsafe_allow_html=True)
-        new_ai_gate = st.checkbox("Block AI draft until readiness check passes", value=rs["ai_draft_requires_readiness"])
-        st.markdown('<p class="field-desc-txt"><b>Anti-rubber-stamp gate</b> — Hero Moment 2 (§13). All decision fields required before saving.</p>', unsafe_allow_html=True)
-        new_rubber  = st.checkbox("Enforce anti-rubber-stamp gate", value=rs["block_rubber_stamp"])
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="settings-section-title">AI & Governance Controls</div>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>Block AI draft until readiness passes</b> — core build principle. Disabling violates the governance posture.</p>', unsafe_allow_html=True)
+            new_ai_gate = st.checkbox("Block AI draft until readiness check passes", value=rs["ai_draft_requires_readiness"])
+            st.markdown('<p class="field-desc-txt"><b>Anti-rubber-stamp gate</b> — Hero Moment 2 (§13). All decision fields required before saving.</p>', unsafe_allow_html=True)
+            new_rubber  = st.checkbox("Enforce anti-rubber-stamp gate", value=rs["block_rubber_stamp"])
 
-        st.markdown(
-            '<div style="background:#fff;border:1px solid #b0b0b0;padding:16px 18px">',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="settings-section-title">Typology Keywords</div>', unsafe_allow_html=True)
-        st.markdown('<p class="field-desc-txt">Keywords per AML typology used by the AI drafter for claim matching.</p>', unsafe_allow_html=True)
-        rule_choice = st.selectbox(
-            "Typology", list(st.session_state.keywords.keys()),
-            label_visibility="collapsed",
-        )
-        current_kws = st.session_state.keywords[rule_choice]
-        chips = "".join(f'<span class="kw-chip">{k}</span>' for k in current_kws)
-        st.markdown(
-            chips or '<span style="color:#999;font-size:11px">None defined.</span>',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<br>', unsafe_allow_html=True)
-        new_kw = st.text_input(
-            "Add keyword",
-            placeholder="e.g. layering, shell company",
-            key="kw_input",
-            label_visibility="collapsed",
-        )
-        kc1, kc2 = st.columns(2)
-        with kc1:
-            if st.button("＋ Add Keyword", use_container_width=True):
-                if new_kw.strip() and new_kw.strip() not in current_kws:
-                    st.session_state.keywords[rule_choice].append(new_kw.strip())
-                    st.session_state.settings_cl.append({
-                        "time":   datetime.now(timezone.utc).strftime("%H:%M:%S"),
-                        "type":   "Keyword Added",
-                        "detail": f'"{new_kw.strip()}" → {rule_choice}',
-                    })
-                    write_log("keyword_added", {"typology": rule_choice, "keyword": new_kw.strip()})
-                    st.rerun()
-        with kc2:
-            kw_del = st.selectbox(
-                "Remove", ["— remove —"] + current_kws,
-                label_visibility="collapsed", key="kw_remove",
+        st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown('<div class="settings-section-title">Typology Keywords</div>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt">Keywords per AML typology used by the AI drafter for claim matching.</p>', unsafe_allow_html=True)
+            rule_choice = st.selectbox(
+                "Typology", list(st.session_state.keywords.keys()),
+                label_visibility="collapsed",
             )
-            if kw_del != "— remove —":
-                if st.button("✕ Remove", use_container_width=True):
-                    st.session_state.keywords[rule_choice].remove(kw_del)
-                    st.session_state.settings_cl.append({
-                        "time":   datetime.now(timezone.utc).strftime("%H:%M:%S"),
-                        "type":   "Keyword Removed",
-                        "detail": f'"{kw_del}" ← {rule_choice}',
-                    })
-                    write_log("keyword_removed", {"typology": rule_choice, "keyword": kw_del})
-                    st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+            current_kws = st.session_state.keywords[rule_choice]
+            chips = "".join(f'<span class="kw-chip">{k}</span>' for k in current_kws)
+            st.markdown(
+                chips or '<span style="color:#999;font-size:11px">None defined.</span>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('<br>', unsafe_allow_html=True)
+            new_kw = st.text_input(
+                "Add keyword",
+                placeholder="e.g. layering, shell company",
+                key="kw_input",
+                label_visibility="collapsed",
+            )
+            kc1, kc2 = st.columns(2)
+            with kc1:
+                if st.button("＋ Add Keyword", use_container_width=True):
+                    if new_kw.strip() and new_kw.strip() not in current_kws:
+                        st.session_state.keywords[rule_choice].append(new_kw.strip())
+                        st.session_state.settings_cl.append({
+                            "time":   datetime.now(timezone.utc).strftime("%H:%M:%S"),
+                            "type":   "Keyword Added",
+                            "detail": f'"{new_kw.strip()}" → {rule_choice}',
+                        })
+                        write_log("keyword_added", {"typology": rule_choice, "keyword": new_kw.strip()})
+                        st.rerun()
+            with kc2:
+                kw_del = st.selectbox(
+                    "Remove", ["— remove —"] + current_kws,
+                    label_visibility="collapsed", key="kw_remove",
+                )
+                if kw_del != "— remove —":
+                    if st.button("✕ Remove", use_container_width=True):
+                        st.session_state.keywords[rule_choice].remove(kw_del)
+                        st.session_state.settings_cl.append({
+                            "time":   datetime.now(timezone.utc).strftime("%H:%M:%S"),
+                            "type":   "Keyword Removed",
+                            "detail": f'"{kw_del}" ← {rule_choice}',
+                        })
+                        write_log("keyword_removed", {"typology": rule_choice, "keyword": kw_del})
+                        st.rerun()
 
     st.markdown('<br>', unsafe_allow_html=True)
     if st.button("Save Risk Settings", type="primary"):
