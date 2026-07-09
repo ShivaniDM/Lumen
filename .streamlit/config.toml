@@ -4,3 +4,8 @@ primaryColor = "#1a5276"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f4f7fa"
 textColor = "#1a1a1a"
+
+[client]
+# Hide Streamlit's own toolbar (the white "Deploy" button top-right) so the
+# hosted app reads as a finished product, not a dev preview.
+toolbarMode = "minimal"
