@@ -1,12 +1,8 @@
 """
-app.py — Lumen Verify AML Decision Workbench
-UI only. Reads from the project's data/ CSVs (src/schema.py is the source of
-truth for those tables) and writes audit entries through src.audit.log_event,
-so the UI and the rest of the system share one audit trail
-(data/audit_log.csv).
+Lumen Verify AML Decision Workbench — UI.
 
-Run from the project root , so data/ resolves
-correctly:
+Reads the project's data/ CSVs and writes audit entries through
+src.audit.log_event. Run from the project root:
 
     streamlit run app.py
 """
@@ -291,9 +287,7 @@ if queue_df.empty:
 # are real schema columns) on top of the display copy.
 #
 # Overrides store the raw enum value (e.g. severity "med"), but the queue
-# column already holds the display label ("Medium") via SEVERITY_LABELS. Map
 # severity overrides through the same table BEFORE injecting, or the queue
-# column ends up with a stray "med" that breaks the badge lookup and the
 # High/Medium/Low sort + filter.
 approved = get_approved_overrides()
 display_df = queue_df.copy()
@@ -360,19 +354,16 @@ if "keywords" not in st.session_state:
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* System font stack — no external font fetch, so zero font-driven layout shift
-   (fixes CLS) and a clean, enterprise/banking-standard look (Segoe UI / Helvetica
-   / Arial family, the same fonts real financial-crime consoles use). */
+/* System font stack — no external font fetch (avoids font-driven layout shift). */
 *,html,body,[class*="css"]{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif !important;box-sizing:border-box;}
 .stApp{background:#eef1f4;}
 .stMainBlockContainer{padding:0 !important;max-width:100% !important;}
-/* Hide Streamlit's own chrome (the "Deploy" button / hamburger) so the app
-   reads as a finished product to a judge. */
+/* Hide Streamlit's own chrome (Deploy button / hamburger). */
 header[data-testid="stHeader"]{display:none !important;}
 div[data-testid="stToolbar"]{display:none !important;}
 #MainMenu{display:none !important;}
 
-/* Brand header — teal (#2e728f) reads as an intentional brand color. */
+/* Brand header — teal (#2e728f). */
 .id-bar{background:#2e728f;padding:13px 26px;display:flex;justify-content:space-between;align-items:center;}
 .id-bar-logo{font-size:24px;font-weight:700;color:#fff;letter-spacing:.02em;margin:0;}
 .id-bar-logo span{color:#cfeaf5;}
@@ -456,8 +447,7 @@ div[data-testid="stToolbar"]{display:none !important;}
 .v-review{color:#6b3800;font-weight:700;font-size:10px;background:#fef3e2;padding:2px 6px;border:1px solid #dba;border-radius:2px;}
 .warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:8px 12px;font-size:12px;color:#5d4000;margin:8px 0 0 0;}
 
-/* Claim card — the contradiction is the centerpiece: AI asserted X /
-   evidence shows Y / result Z, all in explicit dark text. */
+/* Claim card — AI asserted X / evidence shows Y / result Z. */
 .claim-card{background:#fff;border:1px solid #d8d8d8;border-left:5px solid #999;margin:0 0 12px 0;}
 .claim-card.fail{border-left-color:#b03a2e;}
 .claim-card.pass{border-left-color:#1e8449;}
@@ -598,7 +588,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ═════════════════════════════════════════════════════════════════════════════
-# CASE FILE — modal popup (PeopleSoft-style window)
+# CASE FILE — modal popup
 # ═════════════════════════════════════════════════════════════════════════════
 @st.dialog("Case File", width="large")
 def show_case_dialog(alert_id: str, source: dict) -> None:
@@ -614,8 +604,7 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # HERO: AI Claims & Verification — the contradiction is the centerpiece,
-    # read as "AI asserted X / evidence shows Y / result Z" in dark text.
+    # AI claims & verification: "AI asserted X / evidence shows Y / result Z".
     def _claim_card(cl):
         cls = "pass" if cl["result"] == "PASS" else "fail" if cl["result"] == "FAIL" else "review"
         badge = f'v-{cls}'
@@ -1020,7 +1009,7 @@ with tab3:
         # empty box while the widget lands outside (the "empty white box" bug).
         with st.container(border=True):
             st.markdown('<div class="settings-section-title">Severity Thresholds</div>', unsafe_allow_html=True)
-            st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review (Ryan severity matrix §10).</p>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review.</p>', unsafe_allow_html=True)
             new_high   = st.number_input("High severity trigger (≥)",   50, 100,         rs["high_threshold"],       5,  key="ni_high")
             st.markdown('<p class="field-desc-txt"><b>Medium threshold</b> — alerts between this and High get standard analyst review.</p>', unsafe_allow_html=True)
             new_medium = st.number_input("Medium severity trigger (≥)", 20, int(new_high)-5, min(rs["medium_threshold"], new_high-5), 5, key="ni_med")
@@ -1042,7 +1031,7 @@ with tab3:
             st.markdown('<div class="settings-section-title">AI & Governance Controls</div>', unsafe_allow_html=True)
             st.markdown('<p class="field-desc-txt"><b>Block AI draft until readiness passes</b> — core build principle. Disabling violates the governance posture.</p>', unsafe_allow_html=True)
             new_ai_gate = st.checkbox("Block AI draft until readiness check passes", value=rs["ai_draft_requires_readiness"])
-            st.markdown('<p class="field-desc-txt"><b>Anti-rubber-stamp gate</b> — Hero Moment 2 (§13). All decision fields required before saving.</p>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>Anti-rubber-stamp gate</b> — all decision fields required before saving.</p>', unsafe_allow_html=True)
             new_rubber  = st.checkbox("Enforce anti-rubber-stamp gate", value=rs["block_rubber_stamp"])
 
         st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
