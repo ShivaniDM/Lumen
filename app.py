@@ -1,12 +1,8 @@
 """
-app.py — Lumen Verify AML Decision Workbench
-UI only. Reads from the project's data/ CSVs (src/schema.py is the source of
-truth for those tables) and writes audit entries through src.audit.log_event,
-so the UI and the rest of the system share one audit trail
-(data/audit_log.csv).
+Lumen Verify AML Decision Workbench — UI.
 
-Run from the project root , so data/ resolves
-correctly:
+Reads the project's data/ CSVs and writes audit entries through
+src.audit.log_event. Run from the project root:
 
     streamlit run app.py
 """
@@ -289,10 +285,16 @@ if queue_df.empty:
 
 # Apply approved overrides (severity/status only — the only queue fields that
 # are real schema columns) on top of the display copy.
+#
+# Overrides store the raw enum value (e.g. severity "med"), but the queue
+# severity overrides through the same table BEFORE injecting, or the queue
+# High/Medium/Low sort + filter.
 approved = get_approved_overrides()
 display_df = queue_df.copy()
 for aid, fields in approved.items():
     for field, val in fields.items():
+        if field == "severity":
+            val = SEVERITY_LABELS.get(val, val)
         display_df.loc[display_df["alert_id"] == aid, field] = val
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -350,32 +352,20 @@ if "keywords" not in st.session_state:
 # ─────────────────────────────────────────────────────────────────────────────
 # CSS
 # ─────────────────────────────────────────────────────────────────────────────
-# Load fonts with preconnect + a non-blocking <link> instead of a render-blocking
-# @import. The fonts arrive sooner, so the swap from the fallback font happens
-# earlier and causes far less layout shift (the main CLS culprit).
-st.markdown("""
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap">
-""", unsafe_allow_html=True)
-
 st.markdown("""
 <style>
-*,html,body,[class*="css"]{font-family:'Source Sans 3',Arial,sans-serif !important;box-sizing:border-box;}
-/* Reserve height for the header so the logo doesn't reflow when the serif
-   font loads (reduces the h1/LCP layout shift). */
-.id-bar-logo{min-height:34px;}
+/* System font stack — no external font fetch (avoids font-driven layout shift). */
+*,html,body,[class*="css"]{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif !important;box-sizing:border-box;}
 .stApp{background:#eef1f4;}
 .stMainBlockContainer{padding:0 !important;max-width:100% !important;}
-/* Hide Streamlit's own chrome (the "Deploy" button / hamburger) so the app
-   reads as a finished product to a judge. */
+/* Hide Streamlit's own chrome (Deploy button / hamburger). */
 header[data-testid="stHeader"]{display:none !important;}
 div[data-testid="stToolbar"]{display:none !important;}
 #MainMenu{display:none !important;}
 
-/* Brand header — teal (#2e728f) reads as an intentional brand color. */
+/* Brand header — teal (#2e728f). */
 .id-bar{background:#2e728f;padding:13px 26px;display:flex;justify-content:space-between;align-items:center;}
-.id-bar-logo{font-family:'Source Serif 4',Georgia,serif;font-size:27px;font-weight:600;color:#fff;letter-spacing:-0.01em;margin:0;}
+.id-bar-logo{font-size:24px;font-weight:700;color:#fff;letter-spacing:.02em;margin:0;}
 .id-bar-logo span{color:#cfeaf5;}
 .id-bar-right{font-size:14px;color:#eaf4f8;display:flex;gap:20px;align-items:center;}
 .id-bar-right a{color:#eaf4f8;text-decoration:none;}
@@ -383,13 +373,18 @@ div[data-testid="stToolbar"]{display:none !important;}
 .id-bar-sep{color:#6ba3ba;}
 .id-bar-user{background:#255d75;border:1px solid #4a8ba5;padding:6px 14px;border-radius:4px;color:#fff !important;font-size:14px;font-weight:600;}
 
-.sub-nav{background:#245d74;padding:0 26px;display:flex;align-items:center;justify-content:space-between;height:34px;}
-.sub-nav-left{font-size:13px;font-weight:600;color:#eaf4f8;}
-.sub-nav-right{font-size:13px;color:#d5eaf1;font-variant-numeric:tabular-nums;}
+.sub-nav{background:#245d74;padding:0 26px;display:flex;align-items:center;justify-content:space-between;height:40px;border-bottom:1px solid #cdd6de;box-shadow:0 2px 4px rgba(0,0,0,.08);}
+.sub-nav-left{font-size:14px;font-weight:600;color:#f3fafc;}
+.sub-nav-right{font-size:14px;color:#e8f4f8;font-weight:500;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:14px;}
+/* Tiny pending-overrides indicator, restored to the header. */
+.hdr-pending{display:inline-flex;align-items:center;gap:5px;background:#c0392b;color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:11px;letter-spacing:.02em;}
+.hdr-pending .dot{width:6px;height:6px;border-radius:50%;background:#fff;display:inline-block;}
 
-.page-body{padding:20px 26px;}
+.page-body{padding:12px 26px 20px 26px;}
+.section-h{font-size:18px !important;font-weight:700 !important;color:#173453 !important;margin:0 0 12px 0 !important;padding:0 !important;}
+.section-h .section-count{color:#5a6570;font-weight:600;font-size:14px;}
 
-.role-bar{background:#fff4d6;border:1px solid #f0c040;border-left:5px solid #f0c040;border-radius:5px;padding:12px 18px;display:flex;align-items:center;gap:10px;font-size:14px;color:#5d4000;}
+.role-bar{background:#fff4d6;border:1px solid #eab308;border-left:6px solid #eab308;border-radius:6px;padding:16px 22px;display:flex;align-items:center;gap:10px;font-size:15px;line-height:1.4;color:#5d4000;min-height:58px;}
 .role-bar b{color:#3d2b00;}
 .pending-badge{display:inline-flex;align-items:center;gap:6px;background:#fde8e8;border:1px solid #d99;border-radius:5px;padding:10px 14px;font-size:14px;font-weight:700;color:#a01818;justify-content:center;}
 
@@ -404,12 +399,12 @@ div[data-testid="stToolbar"]{display:none !important;}
 
 .panel{background:#fff;border:1px solid #cdd6de;border-radius:6px;margin-bottom:16px;overflow:hidden;}
 .panel-header{background:#f4f7fa;border-bottom:1px solid #cdd6de;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;}
-.panel-title{font-size:15px;font-weight:700;color:#173453;}
-.panel-subtitle{font-size:12px;color:#5a6570;}
+.panel-title{font-size:16px;font-weight:700;color:#173453;}
+.panel-subtitle{font-size:13px;color:#5a6570;}
 
-.data-table{width:100%;border-collapse:collapse;font-size:12px;}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;}
 .data-table thead tr{background:linear-gradient(to bottom,#e0e8f0,#c8d8e8);}
-.data-table th{padding:7px 12px;text-align:left;font-size:11px;font-weight:700;color:#1a3a5c;border-right:1px solid #b8ccd8;border-bottom:2px solid #8aaabf;white-space:nowrap;}
+.data-table th{padding:8px 12px;text-align:left;font-size:12px;font-weight:700;color:#1a3a5c;border-right:1px solid #b8ccd8;border-bottom:2px solid #8aaabf;white-space:nowrap;}
 .data-table th:last-child{border-right:none;}
 .data-table td{padding:8px 12px;border-bottom:1px solid #e8e8e8;border-right:1px solid #f0f0f0;color:#1a1a1a;vertical-align:middle;}
 .data-table td:last-child{border-right:none;}
@@ -419,7 +414,7 @@ div[data-testid="stToolbar"]{display:none !important;}
 .data-table tbody tr.selected td{background:#c8dcf0 !important;border-left:3px solid #1a5276;}
 .data-table tbody tr.has-pending td{border-left:3px solid #f0c040;}
 
-.badge{display:inline-block;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;border:1px solid;}
+.badge{display:inline-block;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:3px;border:1px solid;}
 .b-high{background:#fde8e8;color:#7b0000;border-color:#c88;}
 .b-medium{background:#fef3e2;color:#6b3800;border-color:#dba;}
 .b-low{background:#e8f5e8;color:#1a5c1a;border-color:#9c9;}
@@ -452,8 +447,7 @@ div[data-testid="stToolbar"]{display:none !important;}
 .v-review{color:#6b3800;font-weight:700;font-size:10px;background:#fef3e2;padding:2px 6px;border:1px solid #dba;border-radius:2px;}
 .warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:8px 12px;font-size:12px;color:#5d4000;margin:8px 0 0 0;}
 
-/* Claim card — the contradiction is the centerpiece: AI asserted X /
-   evidence shows Y / result Z, all in explicit dark text. */
+/* Claim card — AI asserted X / evidence shows Y / result Z. */
 .claim-card{background:#fff;border:1px solid #d8d8d8;border-left:5px solid #999;margin:0 0 12px 0;}
 .claim-card.fail{border-left-color:#b03a2e;}
 .claim-card.pass{border-left-color:#1e8449;}
@@ -472,17 +466,17 @@ div[data-testid="stToolbar"]{display:none !important;}
 .review-field{margin-top:10px;}
 .review-text{margin:3px 0 0 0;font-size:13px;line-height:1.5;color:#2a2a2a;}
 
-.settings-section-title{font-size:11px;font-weight:700;color:#1a5276;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;}
-.field-desc-txt{font-size:11px;color:#333;margin:2px 0 8px 0;line-height:1.4;}
-.kw-chip{display:inline-block;padding:2px 8px;background:#e8eeff;color:#1a2e8c;border:1px solid #99aacc;border-radius:2px;font-size:11px;font-weight:500;margin:2px;}
+.settings-section-title{font-size:12px;font-weight:700;color:#1a5276;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;}
+.field-desc-txt{font-size:12px;color:#333;margin:2px 0 8px 0;line-height:1.45;}
+.kw-chip{display:inline-block;padding:3px 9px;background:#e8eeff;color:#1a2e8c;border:1px solid #99aacc;border-radius:3px;font-size:12px;font-weight:500;margin:2px;}
 
-.log-tbl{width:100%;border-collapse:collapse;font-size:12px;}
-.log-tbl th{padding:7px 12px;background:#e0e8f0;border-bottom:2px solid #8aaabf;font-size:10px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.08em;text-align:left;}
-.log-tbl td{padding:7px 12px;border-bottom:1px solid #eee;color:#333;}
+.log-tbl{width:100%;border-collapse:collapse;font-size:13px;border:1px solid #cdd6de;}
+.log-tbl th{padding:10px 14px;background:#e0e8f0;border-bottom:2px solid #8aaabf;font-size:12px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.05em;text-align:left;}
+.log-tbl td{padding:9px 14px;border-bottom:1px solid #e8e8e8;color:#2a2a2a;}
 .log-tbl tbody tr:nth-child(even) td{background:#f7f9fc;}
-.lt-change{background:#fef3e2;color:#6b3800;border:1px solid #dba;padding:1px 6px;border-radius:2px;font-size:10px;font-weight:700;}
-.lt-add{background:#e8f5e8;color:#1a5c1a;border:1px solid #9c9;padding:1px 6px;border-radius:2px;font-size:10px;font-weight:700;}
-.lt-remove{background:#fde8e8;color:#7b0000;border:1px solid #c88;padding:1px 6px;border-radius:2px;font-size:10px;font-weight:700;}
+.lt-change{background:#fef3e2;color:#6b3800;border:1px solid #dba;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;}
+.lt-add{background:#e8f5e8;color:#1a5c1a;border:1px solid #9c9;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;}
+.lt-remove{background:#fde8e8;color:#7b0000;border:1px solid #c88;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;}
 
 div[data-testid="stTabs"]>div:first-child{background:linear-gradient(to bottom,#eef1f4,#dfe4ea) !important;border-bottom:2px solid #cdd6de !important;padding:0 26px !important;gap:0 !important;}
 button[data-baseweb="tab"]{font-size:14px !important;font-weight:600 !important;color:#3a4652 !important;padding:11px 20px !important;border-radius:0 !important;background:transparent !important;border-bottom:3px solid transparent !important;}
@@ -513,9 +507,22 @@ ul[data-baseweb="menu"],ul[role="listbox"]{background:#fff !important;}
 ul[data-baseweb="menu"] li,li[role="option"]{background:#fff !important;color:#111 !important;}
 div[data-testid="stDataFrame"]{background:#fff !important;}
 div[data-testid="stDataFrame"] [data-testid="stTable"]{background:#fff !important;}
-.stButton>button{border-radius:3px !important;font-size:11px !important;font-weight:700 !important;letter-spacing:.04em !important;border:1px solid !important;}
+.stButton>button{border-radius:4px !important;font-size:13px !important;font-weight:700 !important;letter-spacing:.02em !important;padding:8px 16px !important;border:1px solid !important;}
 .stButton>button[kind="primary"]{background:linear-gradient(to bottom,#2166a8,#1a5276) !important;color:#fff !important;border-color:#154360 !important;}
 .stButton>button[kind="secondary"]{background:linear-gradient(to bottom,#f0f0f0,#e0e0e0) !important;color:#333 !important;border-color:#aaa !important;}
+
+/* Severity filter / sort — segmented chips, enlarged so they're not undersized. */
+div[data-testid="stButtonGroup"] button{font-size:13px !important;font-weight:700 !important;padding:7px 18px !important;}
+/* Color-code ONLY the severity filter (scoped via the anchor span whose element
+   container immediately precedes the control) so High/Medium/Low read in their
+   badge colors. Text + border always carry the color; the selected chip
+   (kind becomes "segmented_controlActive") also fills with the badge tint. */
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1){color:#7b0000 !important;border-color:#c88 !important;}
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1)[kind="segmented_controlActive"]{background:#fde8e8 !important;}
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2){color:#6b3800 !important;border-color:#dba !important;}
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2)[kind="segmented_controlActive"]{background:#fef3e2 !important;}
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(3){color:#1a5c1a !important;border-color:#9c9 !important;}
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(3)[kind="segmented_controlActive"]{background:#e8f5e8 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -523,32 +530,35 @@ div[data-testid="stDataFrame"] [data-testid="stTable"]{background:#fff !importan
 # TOP BAR
 # ─────────────────────────────────────────────────────────────────────────────
 emp = st.session_state.current_user
+
+# Compute the pending-override count before the header so it can drive the
+# small red indicator restored to the sub-nav bar.
+ov_df         = load_overrides()
+pending_count = len(ov_df[ov_df["status"] == "pending"]) if not ov_df.empty else 0
+pending_pill  = (
+    f'<span class="hdr-pending"><span class="dot"></span>'
+    f'{pending_count} pending override{"s" if pending_count != 1 else ""}</span>'
+    if pending_count else ""
+)
+
 st.markdown(f"""
 <div class="id-bar">
   <h1 class="id-bar-logo">Lumen <span>Verify</span></h1>
   <div class="id-bar-right">
     <span class="id-bar-user">{emp['name']} · {emp['rank']} · {emp['id']}</span>
-    <span class="id-bar-sep">|</span>
-    <a href="#">Help</a>
-    <span class="id-bar-sep">|</span>
-    <a href="#">Log Out</a>
   </div>
 </div>
 <div class="sub-nav">
   <span class="sub-nav-left">AML Decision Workbench &nbsp;·&nbsp; Analyst Queue</span>
   <span class="sub-nav-right">
-    Session: {st.session_state.session_id}
-    &nbsp;·&nbsp;
-    {datetime.now(timezone.utc).strftime('%d-%b-%Y %H:%M')} UTC
+    {pending_pill}
+    <span>Session: {st.session_state.session_id}</span>
+    <span>{datetime.now(timezone.utc).strftime('%d-%b-%Y %H:%M')} UTC</span>
   </span>
 </div>
 """, unsafe_allow_html=True)
 
-# Role switcher
-ov_df         = load_overrides()
-pending_count = len(ov_df[ov_df["status"] == "pending"]) if not ov_df.empty else 0
-
-rs_col1, rs_col2 = st.columns([6, 1.4])
+rs_col1, rs_col2 = st.columns([8, 1.3])
 with rs_col1:
     st.markdown(
         f'<div class="role-bar">Demo mode — viewing as '
@@ -578,7 +588,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ═════════════════════════════════════════════════════════════════════════════
-# CASE FILE — modal popup (PeopleSoft-style window)
+# CASE FILE — modal popup
 # ═════════════════════════════════════════════════════════════════════════════
 @st.dialog("Case File", width="large")
 def show_case_dialog(alert_id: str, source: dict) -> None:
@@ -594,8 +604,7 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # HERO: AI Claims & Verification — the contradiction is the centerpiece,
-    # read as "AI asserted X / evidence shows Y / result Z" in dark text.
+    # AI claims & verification: "AI asserted X / evidence shows Y / result Z".
     def _claim_card(cl):
         cls = "pass" if cl["result"] == "PASS" else "fail" if cl["result"] == "FAIL" else "review"
         badge = f'v-{cls}'
@@ -688,13 +697,10 @@ with tab1:
 
     total = len(display_df)
 
-    st.markdown(f"""
-    <div class="panel">
-      <div class="panel-header">
-        <h2 class="panel-title">Active Alerts &nbsp;<span style="color:#5a6570;font-weight:600;font-size:13px;">({total})</span></h2>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<h2 class="section-h">Active Alerts <span class="section-count">({total})</span></h2>',
+        unsafe_allow_html=True,
+    )
 
     def badge_html(text, cls):
         return (
@@ -749,18 +755,25 @@ with tab1:
             format_func=lambda a: _lbl.get(a, a),
         )
     with fc1:
-        severity_filter = st.multiselect(
+        # Inline colored chips (not a dropdown) so each severity carries its
+        # badge color — High=red, Medium=amber, Low=green. The anchor span
+        # lets the CSS scope the coloring to THIS control only (see style block).
+        st.markdown('<span class="sev-filter-anchor"></span>', unsafe_allow_html=True)
+        severity_filter = st.segmented_control(
             "Filter by severity",
             ["High", "Medium", "Low"],
+            selection_mode="multi",
             default=[],
             key="severity_filter",
         )
     with fc2:
-        sort_order = st.selectbox(
+        sort_order = st.segmented_control(
             "Sort by severity",
             ["Queue order", "High to Low", "Low to High"],
+            selection_mode="single",
+            default="Queue order",
             key="severity_sort",
-        )
+        ) or "Queue order"
 
     if severity_filter:
         display_df = display_df[display_df["severity"].isin(severity_filter)]
@@ -845,7 +858,7 @@ with tab1:
 
     table_html = f"""
 <style>
-  .lv-table {{ width:100%; border-collapse:collapse; font-size:13.5px; font-family:'Source Sans 3',Arial,sans-serif; }}
+  .lv-table {{ width:100%; border-collapse:collapse; font-size:13.5px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }}
   .lv-table thead tr {{ background:#2e728f; }}
   .lv-table th {{ padding:11px 14px; text-align:left; font-size:12px; font-weight:700;
        color:#fff; border-right:1px solid #4a8ba5; letter-spacing:.03em;
@@ -902,9 +915,6 @@ with tab2:
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title">Pending Override Requests</span>
-            <span class="panel-subtitle">
-              Review and approve or reject analyst-submitted changes
-            </span>
           </div>
         </div>""", unsafe_allow_html=True)
 
@@ -999,7 +1009,7 @@ with tab3:
         # empty box while the widget lands outside (the "empty white box" bug).
         with st.container(border=True):
             st.markdown('<div class="settings-section-title">Severity Thresholds</div>', unsafe_allow_html=True)
-            st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review (Ryan severity matrix §10).</p>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review.</p>', unsafe_allow_html=True)
             new_high   = st.number_input("High severity trigger (≥)",   50, 100,         rs["high_threshold"],       5,  key="ni_high")
             st.markdown('<p class="field-desc-txt"><b>Medium threshold</b> — alerts between this and High get standard analyst review.</p>', unsafe_allow_html=True)
             new_medium = st.number_input("Medium severity trigger (≥)", 20, int(new_high)-5, min(rs["medium_threshold"], new_high-5), 5, key="ni_med")
@@ -1021,7 +1031,7 @@ with tab3:
             st.markdown('<div class="settings-section-title">AI & Governance Controls</div>', unsafe_allow_html=True)
             st.markdown('<p class="field-desc-txt"><b>Block AI draft until readiness passes</b> — core build principle. Disabling violates the governance posture.</p>', unsafe_allow_html=True)
             new_ai_gate = st.checkbox("Block AI draft until readiness check passes", value=rs["ai_draft_requires_readiness"])
-            st.markdown('<p class="field-desc-txt"><b>Anti-rubber-stamp gate</b> — Hero Moment 2 (§13). All decision fields required before saving.</p>', unsafe_allow_html=True)
+            st.markdown('<p class="field-desc-txt"><b>Anti-rubber-stamp gate</b> — all decision fields required before saving.</p>', unsafe_allow_html=True)
             new_rubber  = st.checkbox("Enforce anti-rubber-stamp gate", value=rs["block_rubber_stamp"])
 
         st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
@@ -1110,9 +1120,6 @@ with tab4:
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Configuration Change Log</span>
-        <span class="panel-subtitle">
-          In-session setting and keyword changes · Persistent record in the Audit Trail tab
-        </span>
       </div>
     </div>""", unsafe_allow_html=True)
 
@@ -1154,9 +1161,6 @@ with tab5:
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Audit Trail</span>
-        <span class="panel-subtitle">
-          The one append-only log for the whole project — data/audit_log.csv, written by src.audit.log_event
-        </span>
       </div>
     </div>""", unsafe_allow_html=True)
 
@@ -1170,15 +1174,32 @@ with tab5:
         )
     else:
         audit_df = pd.read_csv(AUDIT_LOG_CSV, dtype=str, keep_default_na=False)
+        audit_df = audit_df.sort_values("timestamp", ascending=False)
         st.markdown(
-            f'<div style="font-size:11px;color:#555;margin-bottom:10px">'
+            f'<div style="font-size:13px;color:#555;margin-bottom:10px">'
             f'{len(audit_df)} entries in data/audit_log.csv</div>',
             unsafe_allow_html=True,
         )
-        st.dataframe(
-            audit_df.sort_values("timestamp", ascending=False),
-            width="stretch",
 
-            hide_index=True,
+        def _esc(v):
+            return (str(v).replace("&", "&amp;").replace("<", "&lt;")
+                    .replace(">", "&gt;"))
+
+        audit_rows = "".join(
+            f'<tr>'
+            f'<td style="color:#888;font-variant-numeric:tabular-nums;white-space:nowrap;">{_esc(r["timestamp"])}</td>'
+            f'<td style="white-space:nowrap;">{_esc(r["actor"])}</td>'
+            f'<td><span class="lt-change">{_esc(r["action"])}</span></td>'
+            f'<td style="white-space:nowrap;">{_esc(r["alert_id"]) or "—"}</td>'
+            f'<td style="color:#555;">{_esc(r["details_json"])}</td>'
+            f'</tr>'
+            for _, r in audit_df.iterrows()
+        )
+        st.markdown(
+            f'<table class="log-tbl">'
+            f'<thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th>'
+            f'<th>Alert</th><th>Details</th></tr></thead>'
+            f'<tbody>{audit_rows}</tbody></table>',
+            unsafe_allow_html=True,
         )
     st.markdown('</div>', unsafe_allow_html=True)
