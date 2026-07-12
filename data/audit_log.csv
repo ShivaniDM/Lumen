@@ -13,6 +13,3 @@ LOG-SEED-011,2026-05-27T10:00:00,ui:EMP-300,risk_settings_saved,,"{""changes"": 
 LOG-SEED-012,2026-05-27T10:02:00,ui:EMP-300,keyword_added,,"{""keyword"": ""smurfing"", ""typology"": ""structuring""}"
 LOG-SEED-013,2026-05-27T10:03:00,ui:EMP-300,keyword_removed,,"{""keyword"": ""obsolete_term"", ""typology"": ""structuring""}"
 LOG-SEED-014,2026-05-28T15:12:00,ui:EMP-108,override_review,ALERT007,"{""change_id"": ""CHG-HIST-009"", ""decision"": ""approved""}"
-LOG-7c4b353e8147,2026-07-03T20:32:07.594940+00:00,ui:EMP-003,override_review,ALERT002,"{""change_id"": ""CHG-SEED-001"", ""decision"": ""approved"", ""reviewer"": ""S. Mayekar""}"
-LOG-644750fad2c2,2026-07-09T22:15:34.525180+00:00,ui:EMP-003,override_review,ALERT005,"{""change_id"": ""CHG-SEED-002"", ""decision"": ""approved"", ""reviewer"": ""S. Mayekar""}"
-LOG-96c5910bc976,2026-07-09T22:15:39.282668+00:00,ui:EMP-003,override_review,ALERT001,"{""change_id"": ""CHG-SEED-003"", ""decision"": ""approved"", ""reviewer"": ""S. Mayekar""}"
