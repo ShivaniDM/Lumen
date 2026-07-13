@@ -57,11 +57,6 @@ if missing:
     )
     st.stop()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# A small fixed roster of analysts/managers for the demo session switcher.
-# This is UI-only convenience state, not part of the project schema — there is
-# no employees table in src/schema.py.
-# ─────────────────────────────────────────────────────────────────────────────
 ANALYSTS = {
     "EMP-003": {"id": "EMP-003", "name": "S. Mayekar", "rank": "Analyst"},
     "EMP-001": {"id": "EMP-001", "name": "L. Pagan", "rank": "Lead Analyst"},
@@ -71,12 +66,7 @@ ANALYSTS = {
 SEVERITY_LABELS = {"high": "High", "med": "Medium", "low": "Low"}
 STATUS_LABELS = {"open": "Pending Review", "in_review": "In Progress", "closed": "Closed"}
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
-
 def write_log(action: str, details: dict, alert_id: str | None = None) -> dict:
-    """Append one row to the shared audit trail (data/audit_log.csv)."""
     emp = st.session_state.get("current_user", {})
     return audit.log_event(
         actor=f"ui:{emp.get('id', 'UNKNOWN')}",
@@ -144,7 +134,6 @@ def update_override_status(change_id: str, status: str, reviewer: str) -> None:
 
 
 def get_approved_overrides() -> dict:
-    """Return {alert_id: {field: new_value}} for all approved overrides."""
     df = load_overrides()
     if df.empty:
         return {}
@@ -156,11 +145,6 @@ def get_approved_overrides() -> dict:
 
 @st.cache_data
 def load_source_tables(cache_key: float) -> dict:
-    """Load every project table as a dict of string-typed DataFrames.
-
-    This is exactly the `source` contract src.verifier.verify_claim expects:
-    a dict of DataFrames keyed by table name, all string-typed.
-    """
     def read(path):
         return pd.read_csv(path, dtype=str, keep_default_na=False)
 
@@ -177,13 +161,10 @@ def load_source_tables(cache_key: float) -> dict:
 
 
 def mtimes_key() -> float:
-    """Cache-busting key: sum of mtimes of all source CSVs."""
     return sum(p.stat().st_mtime for p in REQUIRED)
 
 
-
 def case_readiness_pct(alert_id: str, source: dict) -> int:
-    """Share of this alert's expected evidence items that are on file."""
     ev = source["evidence_items"]
     rows = ev[ev["alert_id"] == alert_id]
     if len(rows) == 0:
@@ -218,7 +199,6 @@ def build_queue_row(alert_row: pd.Series, source: dict) -> dict:
 
 
 def get_case_detail(alert_id: str, source: dict) -> dict:
-    """Assemble a case file for one alert straight from the real tables."""
     alerts = source["alerts"]
     arow = alerts[alerts["alert_id"] == alert_id].iloc[0]
     customer_id = arow["customer_id"]
@@ -283,12 +263,6 @@ queue_df = pd.DataFrame([build_queue_row(r, source) for _, r in alerts_df.iterro
 if queue_df.empty:
     st.warning("No alerts to display. Check that data/alerts.csv has content.")
 
-# Apply approved overrides (severity/status only — the only queue fields that
-# are real schema columns) on top of the display copy.
-#
-# Overrides store the raw enum value (e.g. severity "med"), but the queue
-# severity overrides through the same table BEFORE injecting, or the queue
-# High/Medium/Low sort + filter.
 approved = get_approved_overrides()
 display_df = queue_df.copy()
 for aid, fields in approved.items():
@@ -315,11 +289,6 @@ if "case_search"       not in st.session_state: st.session_state.case_search    
 if "open_case"         not in st.session_state: st.session_state.open_case         = None
 if "settings_cl"       not in st.session_state: st.session_state.settings_cl       = []
 
-# A clicked alert row is an <a href="?alert=<id>"> link (no JS — Streamlit strips
-# onclick from injected HTML). Consume that param ONCE: set the case to open and
-# the highlighted row, then clear the param. The dialog is triggered by a
-# one-shot flag (open_case) rather than a persistent value, so dismissing it
-# (via the ✕ or the Close button) reliably closes it and it does not reopen.
 _qp_alert = st.query_params.get("alert")
 if _qp_alert and _qp_alert in alerts_df["alert_id"].values:
     st.session_state.selected_alert = _qp_alert
@@ -354,17 +323,15 @@ if "keywords" not in st.session_state:
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* System font stack — no external font fetch (avoids font-driven layout shift). */
 *,html,body,[class*="css"]{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif !important;box-sizing:border-box;}
 .stApp{background:#eef1f4;}
 .stMainBlockContainer{padding:0 !important;max-width:100% !important;}
-/* Hide Streamlit's own chrome (Deploy button / hamburger). */
 header[data-testid="stHeader"]{display:none !important;}
 div[data-testid="stToolbar"]{display:none !important;}
 #MainMenu{display:none !important;}
 
-/* Brand header — teal (#2e728f). */
-.id-bar{background:#2e728f;padding:13px 26px;display:flex;justify-content:space-between;align-items:center;}
+/* FIX 1: id-bar gets a bottom border to cleanly separate from light page body */
+.id-bar{background:#2e728f;padding:13px 26px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1a5276;}
 .id-bar-logo{font-size:24px;font-weight:700;color:#fff;letter-spacing:.02em;margin:0;}
 .id-bar-logo span{color:#cfeaf5;}
 .id-bar-right{font-size:14px;color:#eaf4f8;display:flex;gap:20px;align-items:center;}
@@ -373,10 +340,10 @@ div[data-testid="stToolbar"]{display:none !important;}
 .id-bar-sep{color:#6ba3ba;}
 .id-bar-user{background:#255d75;border:1px solid #4a8ba5;padding:6px 14px;border-radius:4px;color:#fff !important;font-size:14px;font-weight:600;}
 
-.sub-nav{background:#245d74;padding:0 26px;display:flex;align-items:center;justify-content:space-between;height:40px;border-bottom:1px solid #cdd6de;box-shadow:0 2px 4px rgba(0,0,0,.08);}
+.sub-nav{background:#245d74;padding:0 26px;display:flex;align-items:center;justify-content:space-between;height:40px;border-bottom:3px solid #1a4f66;box-shadow:0 2px 4px rgba(0,0,0,.12);}
 .sub-nav-left{font-size:14px;font-weight:600;color:#f3fafc;}
-.sub-nav-right{font-size:14px;color:#e8f4f8;font-weight:500;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:14px;}
-/* Tiny pending-overrides indicator, restored to the header. */
+/* FIX 2: sub-nav-right font bumped to 13px — readable without being loud */
+.sub-nav-right{font-size:13px;color:#e8f4f8;font-weight:500;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:14px;}
 .hdr-pending{display:inline-flex;align-items:center;gap:5px;background:#c0392b;color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:11px;letter-spacing:.02em;}
 .hdr-pending .dot{width:6px;height:6px;border-radius:50%;background:#fff;display:inline-block;}
 
@@ -384,7 +351,8 @@ div[data-testid="stToolbar"]{display:none !important;}
 .section-h{font-size:18px !important;font-weight:700 !important;color:#173453 !important;margin:0 0 12px 0 !important;padding:0 !important;}
 .section-h .section-count{color:#5a6570;font-weight:600;font-size:14px;}
 
-.role-bar{background:#fff4d6;border:1px solid #eab308;border-left:6px solid #eab308;border-radius:6px;padding:16px 22px;display:flex;align-items:center;gap:10px;font-size:15px;line-height:1.4;color:#5d4000;min-height:58px;}
+/* FIX 3: role-bar (warning banner) — bigger padding, bigger font, visible */
+.role-bar{background:#fff4d6;border:1px solid #eab308;border-left:6px solid #eab308;border-radius:6px;padding:14px 20px;display:flex;align-items:center;gap:12px;font-size:15px;line-height:1.5;color:#5d4000;min-height:52px;}
 .role-bar b{color:#3d2b00;}
 .pending-badge{display:inline-flex;align-items:center;gap:6px;background:#fde8e8;border:1px solid #d99;border-radius:5px;padding:10px 14px;font-size:14px;font-weight:700;color:#a01818;justify-content:center;}
 
@@ -428,7 +396,7 @@ div[data-testid="stToolbar"]{display:none !important;}
 .rb-v{font-size:11px;font-weight:700;color:#333;min-width:30px;font-variant-numeric:tabular-nums;}
 
 .edit-form{background:#f8f9fa;border:1px solid #b8ccd8;border-left:4px solid #1a5276;padding:14px 16px;margin:6px 0 10px 0;}
-.edit-form-title{font-size:11px;font-weight:700;color:#1a5276;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;}
+.edit-form-title{font-size:13px;font-weight:700;color:#1a5276;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;}
 
 .case-panel{background:#fff;border:1px solid #b0b0b0;margin-top:14px;}
 .case-panel-hdr{background:linear-gradient(to bottom,#1a5276,#154360);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;}
@@ -437,46 +405,45 @@ div[data-testid="stToolbar"]{display:none !important;}
 .case-grid{display:grid;grid-template-columns:1fr 1fr;}
 .case-section{padding:14px 16px;border-right:1px solid #e8e8e8;border-bottom:1px solid #e8e8e8;}
 .case-section:nth-child(even){border-right:none;}
-.case-section-title{font-size:10px;font-weight:700;color:#1a5276;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #d0e0ec;}
-.field-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;}
-.field-lbl{color:#666;font-weight:500;}
+.case-section-title{font-size:11px;font-weight:700;color:#1a5276;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #d0e0ec;}
+.field-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;}
+.field-lbl{color:#555;font-weight:500;}
 .field-val{color:#1a1a1a;font-weight:600;text-align:right;}
-.verify-row{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin:3px 0;background:#f8f8f8;border:1px solid #e8e8e8;font-size:12px;}
-.v-pass{color:#1a5c1a;font-weight:700;font-size:10px;background:#e8f5e8;padding:2px 6px;border:1px solid #9c9;border-radius:2px;}
-.v-fail{color:#7b0000;font-weight:700;font-size:10px;background:#fde8e8;padding:2px 6px;border:1px solid #c88;border-radius:2px;}
-.v-review{color:#6b3800;font-weight:700;font-size:10px;background:#fef3e2;padding:2px 6px;border:1px solid #dba;border-radius:2px;}
-.warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:8px 12px;font-size:12px;color:#5d4000;margin:8px 0 0 0;}
+.verify-row{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin:3px 0;background:#f8f8f8;border:1px solid #e8e8e8;font-size:13px;}
+.v-pass{color:#1a5c1a;font-weight:700;font-size:11px;background:#e8f5e8;padding:2px 6px;border:1px solid #9c9;border-radius:2px;}
+.v-fail{color:#7b0000;font-weight:700;font-size:11px;background:#fde8e8;padding:2px 6px;border:1px solid #c88;border-radius:2px;}
+.v-review{color:#6b3800;font-weight:700;font-size:11px;background:#fef3e2;padding:2px 6px;border:1px solid #dba;border-radius:2px;}
+.warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:10px 14px;font-size:13px;color:#5d4000;margin:8px 0 0 0;}
 
-/* Claim card — AI asserted X / evidence shows Y / result Z. */
 .claim-card{background:#fff;border:1px solid #d8d8d8;border-left:5px solid #999;margin:0 0 12px 0;}
 .claim-card.fail{border-left-color:#b03a2e;}
 .claim-card.pass{border-left-color:#1e8449;}
 .claim-card.review{border-left-color:#b9770e;}
 .claim-line{display:flex;gap:12px;padding:8px 14px;font-size:13px;align-items:baseline;border-bottom:1px solid #ececec;}
-.claim-line .claim-tag{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#777;min-width:110px;flex-shrink:0;}
+.claim-line .claim-tag{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#777;min-width:110px;flex-shrink:0;}
 .claim-line .claim-val{color:#1a1a1a !important;font-weight:600;}
 .claim-result-line{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:#f2f2f2;}
-.claim-result-line .claim-tag{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#555;}
+.claim-result-line .claim-tag{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#555;}
 
-/* Human Review — formal labelled record, not a run-on paragraph. */
 .review-meta{display:flex;gap:28px;flex-wrap:wrap;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #e6e6e6;}
 .review-meta>div{display:flex;flex-direction:column;gap:2px;}
-.review-lbl{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#777;}
+.review-lbl{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#777;}
 .review-val{font-size:14px;font-weight:600;color:#1a1a1a;}
 .review-field{margin-top:10px;}
 .review-text{margin:3px 0 0 0;font-size:13px;line-height:1.5;color:#2a2a2a;}
 
-.settings-section-title{font-size:12px;font-weight:700;color:#1a5276;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;}
-.field-desc-txt{font-size:12px;color:#333;margin:2px 0 8px 0;line-height:1.45;}
-.kw-chip{display:inline-block;padding:3px 9px;background:#e8eeff;color:#1a2e8c;border:1px solid #99aacc;border-radius:3px;font-size:12px;font-weight:500;margin:2px;}
+.settings-section-title{font-size:13px;font-weight:700;color:#1a5276;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;}
+.field-desc-txt{font-size:13px;color:#333;margin:2px 0 8px 0;line-height:1.45;}
+.kw-chip{display:inline-block;padding:3px 9px;background:#e8eeff;color:#1a2e8c;border:1px solid #99aacc;border-radius:3px;font-size:13px;font-weight:500;margin:2px;}
 
+/* FIX 4: log-tbl and badges — all bumped to 13px for readability */
 .log-tbl{width:100%;border-collapse:collapse;font-size:13px;border:1px solid #cdd6de;}
-.log-tbl th{padding:10px 14px;background:#e0e8f0;border-bottom:2px solid #8aaabf;font-size:12px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.05em;text-align:left;}
-.log-tbl td{padding:9px 14px;border-bottom:1px solid #e8e8e8;color:#2a2a2a;}
+.log-tbl th{padding:10px 14px;background:#e0e8f0;border-bottom:2px solid #8aaabf;font-size:13px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.05em;text-align:left;}
+.log-tbl td{padding:9px 14px;border-bottom:1px solid #e8e8e8;color:#2a2a2a;font-size:13px;}
 .log-tbl tbody tr:nth-child(even) td{background:#f7f9fc;}
-.lt-change{background:#fef3e2;color:#6b3800;border:1px solid #dba;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;}
-.lt-add{background:#e8f5e8;color:#1a5c1a;border:1px solid #9c9;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;}
-.lt-remove{background:#fde8e8;color:#7b0000;border:1px solid #c88;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;}
+.lt-change{background:#fef3e2;color:#6b3800;border:1px solid #dba;padding:3px 9px;border-radius:3px;font-size:13px;font-weight:700;}
+.lt-add{background:#e8f5e8;color:#1a5c1a;border:1px solid #9c9;padding:3px 9px;border-radius:3px;font-size:13px;font-weight:700;}
+.lt-remove{background:#fde8e8;color:#7b0000;border:1px solid #c88;padding:3px 9px;border-radius:3px;font-size:13px;font-weight:700;}
 
 div[data-testid="stTabs"]>div:first-child{background:linear-gradient(to bottom,#eef1f4,#dfe4ea) !important;border-bottom:2px solid #cdd6de !important;padding:0 26px !important;gap:0 !important;}
 button[data-baseweb="tab"]{font-size:14px !important;font-weight:600 !important;color:#3a4652 !important;padding:11px 20px !important;border-radius:0 !important;background:transparent !important;border-bottom:3px solid transparent !important;}
@@ -486,22 +453,17 @@ div[data-testid="stNumberInput"] input{background:#fff !important;border:1px sol
 div[data-testid="stTextInput"] input{background:#fff !important;border:1px solid #999 !important;border-radius:3px !important;font-size:14px !important;color:#111 !important;}
 div[data-testid="stSelectbox"]>div>div{background:#fff !important;border:1px solid #999 !important;border-radius:3px !important;font-size:14px !important;color:#111 !important;}
 div[data-testid="stMultiSelect"] div[data-baseweb="select"]>div{font-size:14px !important;}
-.stCheckbox label{font-size:12px !important;color:#1a1a1a !important;}
+.stCheckbox label{font-size:13px !important;color:#1a1a1a !important;}
 .stCheckbox label p{color:#1a1a1a !important;}
-/* In Streamlit 1.58 the widget-label testid sits on a <label> element (not a
-   <div>), so target the label directly — this is what darkens the Risk
-   Settings field labels ("High severity trigger", "KYC staleness limit"…). */
 label[data-testid="stWidgetLabel"],
 label[data-testid="stWidgetLabel"] *,
 label[data-testid="stWidgetLabel"] p{
   color:#1a1a1a !important;
   -webkit-text-fill-color:#1a1a1a !important;
   font-weight:700 !important;
-  font-size:12px !important;
+  font-size:13px !important;
   opacity:1 !important;
 }
-/* Keep native popovers/menus and the dataframe grid on the light theme,
-   regardless of the OS/browser dark-mode preference. */
 div[data-testid="stMultiSelect"] div[data-baseweb="select"]>div{background:#fff !important;color:#111 !important;border:1px solid #999 !important;}
 ul[data-baseweb="menu"],ul[role="listbox"]{background:#fff !important;}
 ul[data-baseweb="menu"] li,li[role="option"]{background:#fff !important;color:#111 !important;}
@@ -511,12 +473,15 @@ div[data-testid="stDataFrame"] [data-testid="stTable"]{background:#fff !importan
 .stButton>button[kind="primary"]{background:linear-gradient(to bottom,#2166a8,#1a5276) !important;color:#fff !important;border-color:#154360 !important;}
 .stButton>button[kind="secondary"]{background:linear-gradient(to bottom,#f0f0f0,#e0e0e0) !important;color:#333 !important;border-color:#aaa !important;}
 
-/* Severity filter / sort — segmented chips, enlarged so they're not undersized. */
+/* FIX 5: Switch button — scoped to the role-bar column, smaller and proportionate */
+div[data-testid="stColumn"]:last-of-type .stButton>button{
+  font-size:12px !important;
+  padding:6px 12px !important;
+  font-weight:600 !important;
+  white-space:nowrap !important;
+}
+
 div[data-testid="stButtonGroup"] button{font-size:13px !important;font-weight:700 !important;padding:7px 18px !important;}
-/* Color-code ONLY the severity filter (scoped via the anchor span whose element
-   container immediately precedes the control) so High/Medium/Low read in their
-   badge colors. Text + border always carry the color; the selected chip
-   (kind becomes "segmented_controlActive") also fills with the badge tint. */
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1){color:#7b0000 !important;border-color:#c88 !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1)[kind="segmented_controlActive"]{background:#fde8e8 !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2){color:#6b3800 !important;border-color:#dba !important;}
@@ -531,8 +496,6 @@ div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="s
 # ─────────────────────────────────────────────────────────────────────────────
 emp = st.session_state.current_user
 
-# Compute the pending-override count before the header so it can drive the
-# small red indicator restored to the sub-nav bar.
 ov_df         = load_overrides()
 pending_count = len(ov_df[ov_df["status"] == "pending"]) if not ov_df.empty else 0
 pending_pill  = (
@@ -558,7 +521,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-rs_col1, rs_col2 = st.columns([8, 1.3])
+rs_col1, rs_col2 = st.columns([9, 1])
 with rs_col1:
     st.markdown(
         f'<div class="role-bar">Demo mode — viewing as '
@@ -568,8 +531,8 @@ with rs_col1:
     )
 with rs_col2:
     if st.button(
-        "Switch to Analyst" if st.session_state.view_as == "Manager" else "Switch to Manager",
-        width="stretch",
+        "→ Analyst" if st.session_state.view_as == "Manager" else "→ Manager",
+        use_container_width=True,
     ):
         st.session_state.view_as = (
             "Analyst" if st.session_state.view_as == "Manager" else "Manager"
@@ -596,7 +559,6 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
     c = case["customer"]
     a = case["alert"]
 
-    # Case header
     st.markdown(f"""
     <div class="case-panel-hdr" style="border:1px solid #b0b0b0;">
       <span class="case-panel-title">{c.get('name', a['customer_id'])} — {a['rule_triggered']}</span>
@@ -604,7 +566,6 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # AI claims & verification: "AI asserted X / evidence shows Y / result Z".
     def _claim_card(cl):
         cls = "pass" if cl["result"] == "PASS" else "fail" if cl["result"] == "FAIL" else "review"
         badge = f'v-{cls}'
@@ -635,7 +596,6 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
             unsafe_allow_html=True,
         )
 
-    # Supporting detail: customer profile + transactions
     st.markdown(f"""
     <div class="case-panel" style="margin-top:12px;">
       <div class="case-grid">
@@ -680,8 +640,6 @@ def show_case_dialog(alert_id: str, source: dict) -> None:
         """, unsafe_allow_html=True)
 
     if st.button("Close", key="close_case_dialog", type="primary"):
-        # Clear every open/selection flag so both this button and the ✕ close
-        # the dialog cleanly and it doesn't reopen on the next run.
         st.session_state.open_case = None
         st.session_state.selected_alert = None
         st.session_state.case_search = None
@@ -704,7 +662,7 @@ with tab1:
 
     def badge_html(text, cls):
         return (
-            f'<span style="display:inline-block;padding:2px 7px;font-size:10px;'
+            f'<span style="display:inline-block;padding:2px 7px;font-size:11px;'
             f'font-weight:700;letter-spacing:.05em;text-transform:uppercase;'
             f'border-radius:2px;border:1px solid;{cls}">{text}</span>'
         )
@@ -719,11 +677,6 @@ with tab1:
         "In Progress":    "background:#e8f5e8;color:#1a5c1a;border-color:#9c9;",
         "Closed":         "background:#f0f0f0;color:#555;border-color:#bbb;",
     }
-    STAGED_BADGE = (
-        '<span style="display:inline-block;margin-left:4px;padding:1px 5px;'
-        'font-size:9px;font-weight:700;background:#fff8e1;color:#7d4e00;'
-        'border:1px solid #f0c040;border-radius:2px;">STAGED</span>'
-    )
 
     pending_alert_ids = set()
     if not ov_df.empty:
@@ -731,21 +684,15 @@ with tab1:
 
     sel = st.session_state.selected_alert
 
-    # Case search + severity filter/sort, all at the TOP so you don't scroll
-    # past the whole queue to look up a case. Picking a case opens it, exactly
-    # like clicking a row.
     all_alert_ids = display_df["alert_id"].tolist()
     fc0, fc1, fc2 = st.columns([3, 2, 2])
     with fc0:
-        # index=None + placeholder means no sentinel option pollutes the typed
-        # query — the user types straight into an empty search field.
         def _pick_case():
             v = st.session_state.case_search
             if v:
                 st.session_state.selected_alert = v
                 st.session_state.open_case = v
 
-        # Show "ALERT001 — Dana Whitfield · High" instead of a bare id.
         _lbl = {r["alert_id"]: f'{r["alert_id"]} — {r["customer"]} · {r["severity"]}'
                 for _, r in display_df.iterrows()}
         st.selectbox(
@@ -755,9 +702,6 @@ with tab1:
             format_func=lambda a: _lbl.get(a, a),
         )
     with fc1:
-        # Inline colored chips (not a dropdown) so each severity carries its
-        # badge color — High=red, Medium=amber, Low=green. The anchor span
-        # lets the CSS scope the coloring to THIS control only (see style block).
         st.markdown('<span class="sev-filter-anchor"></span>', unsafe_allow_html=True)
         severity_filter = st.segmented_control(
             "Filter by severity",
@@ -804,30 +748,24 @@ with tab1:
             f'<div style="width:70px;height:8px;background:#ddd;border:1px solid #bbb;'
             f'border-radius:1px;overflow:hidden;">'
             f'<div style="width:{v}%;height:100%;background:{rcol};"></div></div>'
-            f'<span style="font-size:11px;font-weight:700;color:#333;'
+            f'<span style="font-size:12px;font-weight:700;color:#333;'
             f'min-width:30px;">{v}%</span></div>'
         )
 
         ai_html = (
-            '<span style="color:#1a5c1a;font-size:11px;font-weight:700;">&#9679; AI</span>'
+            '<span style="color:#1a5c1a;font-size:12px;font-weight:700;">&#9679; AI</span>'
             if r["ai"]
-            else '<span style="color:#ccc;font-size:11px;">&#8212;</span>'
+            else '<span style="color:#ccc;font-size:12px;">&#8212;</span>'
         )
 
         sev_html = badge_html(r["severity"], SEV_STYLE.get(r["severity"], ""))
         sta_html = badge_html(r["status"], STA_STYLE.get(r["status"], ""))
-        ana_html = f'<span style="color:#555;">{r["analyst"]}</span>'
+        ana_html = f'<span style="color:#555;font-size:13px;">{r["analyst"]}</span>'
         if has_pend:
-            ana_html += ('&nbsp;<span style="font-size:10px;font-weight:700;color:#8a5600;'
+            ana_html += ('&nbsp;<span style="font-size:11px;font-weight:700;color:#8a5600;'
                          'background:#fdf0d5;border:1px solid #e0b877;border-radius:3px;'
                          'padding:1px 5px;">PENDING</span>')
 
-        # Accessibility: the whole row is visually clickable for mouse users,
-        # but only ONE link per row is exposed to keyboard/screen-reader users
-        # (the "Open" cell, with a descriptive aria-label). The other cells'
-        # links are hidden from assistive tech (tabindex=-1, aria-hidden), which
-        # cuts ~351 tab stops down to ~39 and fixes the "9 identical links per
-        # row" problem, while keeping the click-anywhere behaviour.
         aid = r["alert_id"]
 
         def _cell(content, extra="", td_style="", interactive=False, aria=""):
@@ -843,9 +781,9 @@ with tab1:
 
         rows_html += (
             f'<tr style="{row_style}">'
-            + _cell(aid, "font-weight:700;color:#1a5276;")
-            + _cell(r["customer"], "font-weight:600;")
-            + _cell(r["rule"])
+            + _cell(aid, "font-weight:700;color:#1a5276;font-size:13px;")
+            + _cell(r["customer"], "font-weight:600;font-size:13px;")
+            + _cell(r["rule"], "font-size:13px;")
             + _cell(sev_html, td_style=sev_bg)
             + _cell(rb_html)
             + _cell(ai_html)
@@ -860,7 +798,7 @@ with tab1:
 <style>
   .lv-table {{ width:100%; border-collapse:collapse; font-size:13.5px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }}
   .lv-table thead tr {{ background:#2e728f; }}
-  .lv-table th {{ padding:11px 14px; text-align:left; font-size:12px; font-weight:700;
+  .lv-table th {{ padding:11px 14px; text-align:left; font-size:13px; font-weight:700;
        color:#fff; border-right:1px solid #4a8ba5; letter-spacing:.03em;
        border-bottom:none; white-space:nowrap; }}
   .lv-table th:last-child {{ border-right:none; }}
@@ -872,7 +810,7 @@ with tab1:
   .lv-table tbody tr:nth-child(even) td {{ background:#f7f8f9; }}
   .lv-table tbody tr:nth-child(odd) td {{ background:#fff; }}
   .lv-table tbody tr:hover td {{ background:#eef3f5 !important; cursor:pointer; }}
-  .lv-open {{ color:#2e728f; font-weight:700; font-size:12px; white-space:nowrap; }}
+  .lv-open {{ color:#2e728f; font-weight:700; font-size:13px; white-space:nowrap; }}
   .lv-table tbody tr:hover .lv-open {{ text-decoration:underline; }}
 </style>
 <table class="lv-table">
@@ -885,12 +823,8 @@ with tab1:
   <tbody>{rows_html}</tbody>
 </table>"""
 
-    # Rendered via st.markdown (not st.html) so the <a> row links navigate the
-    # page — st.html sandboxes the table in an iframe and links wouldn't work.
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # One-shot: render the dialog for the case that was just opened, then clear
-    # the flag so dismissing it (✕ or Close) doesn't reopen it on the next run.
     if st.session_state.open_case:
         _aid = st.session_state.open_case
         st.session_state.open_case = None
@@ -908,7 +842,7 @@ with tab2:
         st.markdown("""
         <div class="warn-box" style="margin:0 0 14px 0">
           Manager Review is only accessible in Manager view.
-          Use the <b>Switch to Manager</b> button at the top of the page.
+          Use the <b>→ Manager</b> button at the top of the page.
         </div>""", unsafe_allow_html=True)
     else:
         st.markdown("""
@@ -927,7 +861,7 @@ with tab2:
         if pending_ov.empty:
             st.markdown(
                 '<div style="background:#fff;border:1px solid #b0b0b0;'
-                'padding:20px;font-size:12px;color:#888">'
+                'padding:20px;font-size:13px;color:#888">'
                 'No pending override requests.</div>',
                 unsafe_allow_html=True,
             )
@@ -937,10 +871,10 @@ with tab2:
                 <div style="background:#fff;border:1px solid #b0b0b0;
                             border-left:4px solid #f0c040;padding:14px 16px;margin-bottom:10px">
                   <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-                    <span style="font-size:12px;font-weight:700">{row['change_id']}</span>
-                    <span style="font-size:11px;color:#888">{row['changed_at']}</span>
+                    <span style="font-size:13px;font-weight:700">{row['change_id']}</span>
+                    <span style="font-size:12px;color:#888">{row['changed_at']}</span>
                   </div>
-                  <div style="font-size:12px;color:#333;margin-bottom:6px">
+                  <div style="font-size:13px;color:#333;margin-bottom:6px">
                     <b>Alert:</b> {row['alert_id']} &nbsp;·&nbsp;
                     <b>Field:</b> {row['field_changed']} &nbsp;·&nbsp;
                     <b>From:</b>
@@ -949,10 +883,10 @@ with tab2:
                     <b>To:</b>
                     <span style="color:#1a5c1a">{row['new_value']}</span>
                   </div>
-                  <div style="font-size:11px;color:#555;margin-bottom:4px">
+                  <div style="font-size:12px;color:#555;margin-bottom:4px">
                     <b>Submitted by:</b> {row['changed_by_name']} ({row['changed_by_id']})
                   </div>
-                  <div style="font-size:11px;color:#333">
+                  <div style="font-size:12px;color:#333">
                     <b>Reason:</b> {row['reason']}
                   </div>
                 </div>""", unsafe_allow_html=True)
@@ -1004,9 +938,6 @@ with tab3:
     rc1, rc2 = st.columns(2, gap="large")
 
     with rc1:
-        # st.container(border=True) draws the bordered box AND holds the widgets
-        # inside it — unlike raw <div> wrappers, which Streamlit renders as an
-        # empty box while the widget lands outside (the "empty white box" bug).
         with st.container(border=True):
             st.markdown('<div class="settings-section-title">Severity Thresholds</div>', unsafe_allow_html=True)
             st.markdown('<p class="field-desc-txt"><b>High threshold</b> — alerts at or above this require Senior Analyst / Manager review.</p>', unsafe_allow_html=True)
@@ -1046,7 +977,7 @@ with tab3:
             current_kws = st.session_state.keywords[rule_choice]
             chips = "".join(f'<span class="kw-chip">{k}</span>' for k in current_kws)
             st.markdown(
-                chips or '<span style="color:#999;font-size:11px">None defined.</span>',
+                chips or '<span style="color:#999;font-size:13px">None defined.</span>',
                 unsafe_allow_html=True,
             )
             st.markdown('<br>', unsafe_allow_html=True)
@@ -1127,7 +1058,7 @@ with tab4:
     if not scl:
         st.markdown(
             '<div style="background:#fff;border:1px solid #b0b0b0;'
-            'padding:20px;font-size:12px;color:#888">No changes this session.</div>',
+            'padding:20px;font-size:13px;color:#888">No changes this session.</div>',
             unsafe_allow_html=True,
         )
     else:
@@ -1167,7 +1098,7 @@ with tab5:
     if not AUDIT_LOG_CSV.exists():
         st.markdown(
             '<div style="background:#fff;border:1px solid #b0b0b0;'
-            'padding:20px;font-size:12px;color:#888">'
+            'padding:20px;font-size:13px;color:#888">'
             'No audit entries yet. Actions taken in this workbench '
             '(overrides, settings changes, claim verification) write rows here automatically.</div>',
             unsafe_allow_html=True,
