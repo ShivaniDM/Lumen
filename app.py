@@ -64,6 +64,21 @@ ANALYSTS = {
 }
 
 SEVERITY_LABELS = {"high": "High", "med": "Medium", "low": "Low"}
+
+# Every enum vocabulary an override's field_changed can touch, so History
+# never shows a mix of "Medium" (mapped) next to "open" (raw).
+FIELD_ENUM_LABELS = {
+    "severity":    {"high": "High", "med": "Medium", "medium": "Medium", "low": "Low"},
+    "risk_rating": {"high": "High", "medium": "Medium", "low": "Low"},
+    "disposition": {
+        "open": "Open", "escalate": "Escalate", "accepted": "Accepted",
+        "edited": "Edited", "rejected": "Rejected", "monitor": "Monitor",
+    },
+}
+
+def sev_label(field: str, value) -> str:
+    """Human label for an override's old/new value, mapped through its field's enum."""
+    return FIELD_ENUM_LABELS.get(field, {}).get(str(value).lower(), str(value))
 STATUS_LABELS = {"open": "Pending Review", "in_review": "In Progress", "closed": "Closed"}
 
 def write_log(action: str, details: dict, alert_id: str | None = None) -> dict:
@@ -367,7 +382,7 @@ div[data-testid="stToolbar"]{display:none !important;}
 
 .panel{background:#fff;border:1px solid #cdd6de;border-radius:6px;margin-bottom:16px;overflow:hidden;}
 .panel-header{background:#f4f7fa;border-bottom:1px solid #cdd6de;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;}
-.panel-title{font-size:16px;font-weight:700;color:#173453;}
+.panel-title{font-size:17px;font-weight:700;color:#173453;}
 .panel-subtitle{font-size:13px;color:#5a6570;}
 
 .data-table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -413,7 +428,7 @@ div[data-testid="stToolbar"]{display:none !important;}
 .v-pass{color:#1a5c1a;font-weight:700;font-size:11px;background:#e8f5e8;padding:2px 6px;border:1px solid #9c9;border-radius:2px;}
 .v-fail{color:#7b0000;font-weight:700;font-size:11px;background:#fde8e8;padding:2px 6px;border:1px solid #c88;border-radius:2px;}
 .v-review{color:#6b3800;font-weight:700;font-size:11px;background:#fef3e2;padding:2px 6px;border:1px solid #dba;border-radius:2px;}
-.warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:10px 14px;font-size:13px;color:#5d4000;margin:8px 0 0 0;}
+.warn-box{background:#fff8e1;border:1px solid #f0c040;border-left:4px solid #f0c040;padding:12px 16px;font-size:14px;color:#5d4000;margin:8px 0 0 0;}
 
 .claim-card{background:#fff;border:1px solid #d8d8d8;border-left:5px solid #999;margin:0 0 12px 0;}
 .claim-card.fail{border-left-color:#b03a2e;}
@@ -481,13 +496,66 @@ div[data-testid="stColumn"]:last-of-type .stButton>button{
   white-space:nowrap !important;
 }
 
-div[data-testid="stButtonGroup"] button{font-size:13px !important;font-weight:700 !important;padding:7px 18px !important;}
+/* Alert Queue filter bar — one aligned panel, not scattered controls */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.filter-bar-labels){
+  padding:14px 16px 16px 16px !important;background:#fff;}
+.filter-bar-labels{display:grid;grid-template-columns:2.1fr 1.6fr 2.3fr 2.6fr;
+  gap:1rem;margin-bottom:6px;}
+.filter-bar-labels span{font-size:12px;font-weight:700;color:#5a6570;
+  letter-spacing:.05em;text-transform:uppercase;}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.filter-bar-labels) div[data-testid="stSelectbox"]{
+  margin-top:2px;}
+/* Never let a chip row wrap to a second line — that's what broke alignment */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.filter-bar-labels) div[data-testid="stButtonGroup"]{
+  flex-wrap:nowrap !important;width:100%;}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.filter-bar-labels) div[data-testid="stButtonGroup"] button{
+  white-space:nowrap !important;flex:1 1 auto;}
+
+/* Manager Review — pending override cards: separated, readable, hoverable */
+.ov-card{background:#fff;border:1px solid #cdd6de;border-left:5px solid #f0c040;
+  border-radius:6px;padding:16px 18px;margin:0 0 16px 0;
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
+  transition:box-shadow .15s ease,border-color .15s ease;}
+.ov-card:hover{box-shadow:0 3px 10px rgba(23,52,83,.14);border-color:#8aaabf;}
+.ov-card-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+.ov-card-id{font-size:15px;font-weight:700;color:#173453;}
+.ov-card-ts{font-size:13px;color:#5a6570;font-variant-numeric:tabular-nums;}
+.ov-card-body{font-size:14px;color:#1a1a1a;margin-bottom:8px;line-height:1.5;}
+.ov-card-meta{font-size:14px;color:#4a5560;margin-bottom:6px;}
+.ov-card-reason{font-size:14px;color:#1a1a1a;line-height:1.5;}
+.ov-old{color:#8b0000;font-weight:700;}
+.ov-new{color:#1a5c1a;font-weight:700;}
+
+/* Approve / Reject — match the app's semantic colors instead of stock Streamlit */
+div[class*="st-key-apr_"] .stButton>button[kind="primary"]{
+  background:linear-gradient(to bottom,#27865a,#1e8449) !important;
+  color:#fff !important;border-color:#176437 !important;}
+div[class*="st-key-apr_"] .stButton>button[kind="primary"]:hover{background:linear-gradient(to bottom,#2f9c69,#238c50) !important;}
+div[class*="st-key-rej_"] .stButton>button[kind="secondary"]{
+  background:linear-gradient(to bottom,#f5f5f5,#e8e8e8) !important;
+  color:#a01818 !important;border-color:#c88 !important;}
+div[class*="st-key-rej_"] .stButton>button[kind="secondary"]:hover{background:#fde8e8 !important;}
+
+div[data-testid="stButtonGroup"] button{font-size:13px !important;font-weight:700 !important;padding:7px 14px !important;}
+/* Anchor spans exist only so the CSS below can target the *next* sibling —
+   pull them out of flex flow entirely so they don't add a gap and push
+   Severity/Status below Search/Sort (flex `gap` counts a 0-height item too). */
+div[data-testid="stElementContainer"]:has(.sev-filter-anchor),
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor){
+  position:absolute !important;width:0 !important;height:0 !important;
+  margin:0 !important;padding:0 !important;overflow:hidden !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1){color:#7b0000 !important;border-color:#c88 !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1)[kind="segmented_controlActive"]{background:#fde8e8 !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2){color:#6b3800 !important;border-color:#dba !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2)[kind="segmented_controlActive"]{background:#fef3e2 !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(3){color:#1a5c1a !important;border-color:#9c9 !important;}
 div[data-testid="stElementContainer"]:has(.sev-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(3)[kind="segmented_controlActive"]{background:#e8f5e8 !important;}
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1){color:#1a2e8c !important;border-color:#99a !important;}
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(1)[kind="segmented_controlActive"]{background:#e8eeff !important;}
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2){color:#1a5c1a !important;border-color:#9c9 !important;}
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(2)[kind="segmented_controlActive"]{background:#e8f5e8 !important;}
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(3){color:#555 !important;border-color:#bbb !important;}
+div[data-testid="stElementContainer"]:has(.sta-filter-anchor)+div[data-testid="stElementContainer"] button:nth-of-type(3)[kind="segmented_controlActive"]{background:#f0f0f0 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -685,49 +753,69 @@ with tab1:
     sel = st.session_state.selected_alert
 
     all_alert_ids = display_df["alert_id"].tolist()
-    fc0, fc1, fc2 = st.columns([3, 2, 2])
-    with fc0:
-        def _pick_case():
-            v = st.session_state.case_search
-            if v:
-                st.session_state.selected_alert = v
-                st.session_state.open_case = v
 
-        _lbl = {r["alert_id"]: f'{r["alert_id"]} — {r["customer"]} · {r["severity"]}'
-                for _, r in display_df.iterrows()}
-        st.selectbox(
-            "Search or open a case", all_alert_ids, key="case_search",
-            index=None, placeholder="Search by alert ID or customer name…",
-            on_change=_pick_case,
-            format_func=lambda a: _lbl.get(a, a),
-        )
-    with fc1:
-        st.markdown('<span class="sev-filter-anchor"></span>', unsafe_allow_html=True)
-        severity_filter = st.segmented_control(
-            "Filter by severity",
-            ["High", "Medium", "Low"],
-            selection_mode="multi",
-            default=[],
-            key="severity_filter",
-        )
-    with fc2:
-        sort_order = st.segmented_control(
-            "Sort by severity",
-            ["Queue order", "High to Low", "Low to High"],
-            selection_mode="single",
-            default="Queue order",
-            key="severity_sort",
-        ) or "Queue order"
+    with st.container(border=True):
+        st.markdown('<div class="filter-bar-labels">'
+                     '<span>Search</span><span>Severity</span>'
+                     '<span>Status</span><span>Sort</span></div>',
+                     unsafe_allow_html=True)
+        fc0, fc1, fc2, fc3 = st.columns([2.1, 1.6, 2.3, 2.6])
+        with fc0:
+            def _pick_case():
+                v = st.session_state.case_search
+                if v:
+                    st.session_state.selected_alert = v
+                    st.session_state.open_case = v
+
+            _lbl = {r["alert_id"]: f'{r["alert_id"]} — {r["customer"]} · {r["severity"]}'
+                    for _, r in display_df.iterrows()}
+            st.selectbox(
+                "Search or open a case", all_alert_ids, key="case_search",
+                index=None, placeholder="Search by alert ID or customer name…",
+                on_change=_pick_case, label_visibility="collapsed",
+                format_func=lambda a: _lbl.get(a, a),
+            )
+        with fc1:
+            st.markdown('<span class="sev-filter-anchor"></span>', unsafe_allow_html=True)
+            severity_filter = st.segmented_control(
+                "Filter by severity",
+                ["High", "Medium", "Low"],
+                selection_mode="multi",
+                default=[],
+                key="severity_filter",
+                label_visibility="collapsed",
+            )
+        with fc2:
+            st.markdown('<span class="sta-filter-anchor"></span>', unsafe_allow_html=True)
+            status_filter = st.segmented_control(
+                "Filter by status",
+                ["Pending Review", "In Progress", "Closed"],
+                selection_mode="multi",
+                default=[],
+                key="status_filter",
+                label_visibility="collapsed",
+            )
+        with fc3:
+            sort_order = st.segmented_control(
+                "Sort by severity",
+                ["Default", "High → Low", "Low → High"],
+                selection_mode="single",
+                default="Default",
+                key="severity_sort",
+                label_visibility="collapsed",
+            ) or "Default"
 
     if severity_filter:
         display_df = display_df[display_df["severity"].isin(severity_filter)]
+    if status_filter:
+        display_df = display_df[display_df["status"].isin(status_filter)]
 
     SEV_RANK = {"High": 0, "Medium": 1, "Low": 2}
-    if sort_order == "High to Low":
+    if sort_order == "High → Low":
         display_df = display_df.sort_values(
             by="severity", key=lambda s: s.map(SEV_RANK)
         )
-    elif sort_order == "Low to High":
+    elif sort_order == "Low → High":
         display_df = display_df.sort_values(
             by="severity", key=lambda s: s.map(SEV_RANK), ascending=False
         )
@@ -861,37 +949,36 @@ with tab2:
         if pending_ov.empty:
             st.markdown(
                 '<div style="background:#fff;border:1px solid #b0b0b0;'
-                'padding:20px;font-size:13px;color:#888">'
+                'padding:20px;font-size:14px;color:#5a6570">'
                 'No pending override requests.</div>',
                 unsafe_allow_html=True,
             )
         else:
             for _, row in pending_ov.iterrows():
                 st.markdown(f"""
-                <div style="background:#fff;border:1px solid #b0b0b0;
-                            border-left:4px solid #f0c040;padding:14px 16px;margin-bottom:10px">
-                  <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-                    <span style="font-size:13px;font-weight:700">{row['change_id']}</span>
-                    <span style="font-size:12px;color:#888">{row['changed_at']}</span>
+                <div class="ov-card">
+                  <div class="ov-card-top">
+                    <span class="ov-card-id">{row['change_id']}</span>
+                    <span class="ov-card-ts">{row['changed_at']}</span>
                   </div>
-                  <div style="font-size:13px;color:#333;margin-bottom:6px">
+                  <div class="ov-card-body">
                     <b>Alert:</b> {row['alert_id']} &nbsp;·&nbsp;
                     <b>Field:</b> {row['field_changed']} &nbsp;·&nbsp;
                     <b>From:</b>
-                    <span style="color:#8b0000">{row['old_value']}</span>
+                    <span class="ov-old">{sev_label(row['field_changed'], row['old_value'])}</span>
                     &nbsp;→&nbsp;
                     <b>To:</b>
-                    <span style="color:#1a5c1a">{row['new_value']}</span>
+                    <span class="ov-new">{sev_label(row['field_changed'], row['new_value'])}</span>
                   </div>
-                  <div style="font-size:12px;color:#555;margin-bottom:4px">
+                  <div class="ov-card-meta">
                     <b>Submitted by:</b> {row['changed_by_name']} ({row['changed_by_id']})
                   </div>
-                  <div style="font-size:12px;color:#333">
+                  <div class="ov-card-reason">
                     <b>Reason:</b> {row['reason']}
                   </div>
                 </div>""", unsafe_allow_html=True)
 
-                mc1, mc2, _ = st.columns([1, 1, 5])
+                mc1, mc2, _ = st.columns([1.1, 1.1, 7.8])
                 with mc1:
                     if st.button("✓ Approve", key=f"apr_{row['change_id']}", type="primary"):
                         update_override_status(
@@ -911,13 +998,47 @@ with tab2:
 
         if not ov_fresh.empty:
             st.markdown("""
-            <div class="panel" style="margin-top:14px">
+            <div class="panel" style="margin-top:20px">
               <div class="panel-header">
                 <span class="panel-title">Override History</span>
                 <span class="panel-subtitle">All submitted overrides</span>
               </div>
             </div>""", unsafe_allow_html=True)
-            st.dataframe(ov_fresh, width="stretch", hide_index=True)
+
+            OV_STATUS_STYLE = {
+                "pending":  "background:#fff8e1;color:#7d4e00;border:1px solid #f0c040;",
+                "approved": "background:#e8f5e8;color:#1a5c1a;border:1px solid #9c9;",
+                "rejected": "background:#fde8e8;color:#7b0000;border:1px solid #c88;",
+            }
+
+            def _hesc(v):
+                return (str(v).replace("&", "&amp;").replace("<", "&lt;")
+                        .replace(">", "&gt;"))
+
+            hist_rows = "".join(
+                f'<tr>'
+                f'<td style="white-space:nowrap;font-weight:700;color:#1a5276;">{_hesc(r["change_id"])}</td>'
+                f'<td style="white-space:nowrap;">{_hesc(r["alert_id"])}</td>'
+                f'<td>{_hesc(r["field_changed"])}</td>'
+                f'<td><span class="ov-old">{_hesc(sev_label(r["field_changed"], r["old_value"]))}</span>'
+                f' → <span class="ov-new">{_hesc(sev_label(r["field_changed"], r["new_value"]))}</span></td>'
+                f'<td style="white-space:nowrap;">{_hesc(r["changed_by_name"])}</td>'
+                f'<td><span style="display:inline-block;padding:3px 9px;border-radius:3px;'
+                f'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;'
+                f'{OV_STATUS_STYLE.get(r["status"], "")}">{_hesc(r["status"])}</span></td>'
+                f'<td style="white-space:nowrap;">{_hesc(r["reviewed_by"]) or "—"}</td>'
+                f'<td style="color:#888;font-variant-numeric:tabular-nums;white-space:nowrap;">{_hesc(r["reviewed_at"]) or "—"}</td>'
+                f'</tr>'
+                for _, r in ov_fresh.iterrows()
+            )
+            st.markdown(
+                f'<table class="log-tbl">'
+                f'<thead><tr><th>Change ID</th><th>Alert</th><th>Field</th>'
+                f'<th>Change</th><th>Submitted By</th><th>Status</th>'
+                f'<th>Reviewed By</th><th>Reviewed At</th></tr></thead>'
+                f'<tbody>{hist_rows}</tbody></table>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1058,7 +1179,7 @@ with tab4:
     if not scl:
         st.markdown(
             '<div style="background:#fff;border:1px solid #b0b0b0;'
-            'padding:20px;font-size:13px;color:#888">No changes this session.</div>',
+            'padding:20px;font-size:14px;color:#5a6570">No changes this session.</div>',
             unsafe_allow_html=True,
         )
     else:
@@ -1098,7 +1219,7 @@ with tab5:
     if not AUDIT_LOG_CSV.exists():
         st.markdown(
             '<div style="background:#fff;border:1px solid #b0b0b0;'
-            'padding:20px;font-size:13px;color:#888">'
+            'padding:20px;font-size:14px;color:#5a6570">'
             'No audit entries yet. Actions taken in this workbench '
             '(overrides, settings changes, claim verification) write rows here automatically.</div>',
             unsafe_allow_html=True,
